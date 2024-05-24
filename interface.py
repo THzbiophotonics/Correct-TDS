@@ -8,6 +8,7 @@
 
 import os
 import sys
+import subprocess
 import numpy as np
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -26,7 +27,39 @@ import time
 import fitf as TDS
 from fitc import Controler
 from scipy import signal
+from pathlib import Path as path_
+import constants as csts
+import multiprocessing
 plt.rcParams.update({'font.size': 13})
+
+# ========================== progress bar stylesheet ========================= #
+StyleSheet = '''
+#RedProgressBar {
+    text-align: center;
+}
+#RedProgressBar::chunk {
+    background-color: #F44336;
+}
+#GreenProgressBar {
+    min-height: 12px;
+    max-height: 12px;
+    border-radius: 6px;
+}
+#GreenProgressBar::chunk {
+    border-radius: 6px;
+    background-color: #009688;
+}
+#BlueProgressBar {
+    border: 2px solid #2196F3;
+    border-radius: 5px;
+    background-color: #E0E0E0;
+}
+#BlueProgressBar::chunk {
+    background-color: #2196F3;
+    width: 10px; 
+    margin: 0.5px;
+}
+'''
 
 
 try:
@@ -38,7 +71,7 @@ except:
     print('mpi4py is required for parallelization')
     myrank=0
 
-
+ROOT_DIR = path_(__file__).parent
 
 def deleteLayout(layout):
     if layout is not None:
@@ -155,6 +188,12 @@ class InitParamWidget(QWidget):
         self.dialog.ui = Ui_Dialog()
         self.dialog.ui.setupUi(self.dialog, controler)
         
+        self.dialog_match = QDialog()
+        self.dialog_match.ui = Ui_Dialog_match()
+        
+        # ================= change: add a ref loading bool to control ================ #
+        self.ref_loaded = False
+        # ---------------------------------------------------------------------------- #
         label_width=1500
         text_box_width=150
         text_box_height=22
@@ -186,6 +225,18 @@ class InitParamWidget(QWidget):
         self.button_ask_path_without_sample.resize(self.button_ask_path_without_sample.sizeHint())
         self.button_ask_path_without_sample.clicked.connect(self.get_path_data_ref)
         
+        self.label_match_sample_ref = QLabel('Match sample and reference files')
+        self.label_match_sample_ref.setAlignment(Qt.AlignVCenter)
+        self.label_match_sample_ref.resize(200, 100)
+        self.label_match_sample_ref.resize(self.label_match_sample_ref.sizeHint())
+        self.label_match_sample_ref.setMaximumHeight(text_box_height)
+        
+        self.button_match_sample_ref = QPushButton('match')
+        self.button_match_sample_ref.resize(200, 100)
+        self.button_match_sample_ref.resize(self.button_match_sample_ref.sizeHint())
+        self.button_match_sample_ref.setMaximumHeight(text_box_height)
+        self.button_match_sample_ref.clicked.connect(self.open_dialog_match)
+        
         
         self.label_data_length = QLabel('Set part of data to analyze? (optional)')
         self.label_data_length.setAlignment(Qt.AlignVCenter)
@@ -204,13 +255,19 @@ class InitParamWidget(QWidget):
 
         self.button_parameters = QPushButton('Submit parameters')
         self.button_parameters.setMaximumHeight(22)
-        self.button_parameters.clicked.connect(self.on_click_param)
+        #TODO
+        # self.button_parameters.clicked.connect(self.on_click_param)
         self.button_parameters.pressed.connect(self.pressed_loading)
+        self.button_parameters.setEnabled(False)
 
         # We create a button to extract the information from the text boxes
         self.button = QPushButton('Submit / Preview')
         self.button.pressed.connect(self.pressed_loading)
-        self.button.clicked.connect(self.on_click)
+        self.button.setEnabled(False)
+        #TODO
+        #TOVERIFY
+        # self.button.clicked.connect(self.on_click)
+        # self.button.clicked.connect(self.on_click_print)
         self.button.setMaximumHeight(text_box_height)
         
         # Filter or not filter
@@ -219,6 +276,8 @@ class InitParamWidget(QWidget):
         self.LFfilter_choice.addItems(['No','Yes'])
         self.LFfilter_choice.setMaximumWidth(text_box_width)
         self.LFfilter_choice.setMaximumHeight(text_box_height)
+        self.LFfilter_choice.setCurrentIndex(1)
+        
         
         self.HFfilter_label = QLabel('Filter high frequencies?\t      ')
         self.HFfilter_choice = QComboBox()
@@ -249,16 +308,18 @@ class InitParamWidget(QWidget):
         self.options_super.setMinimumWidth(text_box_width-75)
         self.options_super.setMaximumWidth(text_box_width)
         self.options_super.setMaximumHeight(text_box_height)
+        self.options_super.setCurrentIndex(0)
     
         
         # Delay
-        self.label_delay = QLabel("Fit delay?")
+        self.label_delay = QLabel("Correct delay?")
         self.label_delay.setMaximumWidth(label_width)
         self.label_delay.setMaximumHeight(text_box_height)
         self.options_delay = QComboBox()
         self.options_delay.addItems(['No','Yes'])
         self.options_delay.setMaximumWidth(text_box_width-75)
         self.options_delay.setMaximumHeight(text_box_height)
+        self.options_delay.setCurrentIndex(1)
         self.delayvalue_label = QLabel("Delay absolute value")
         self.delay_limit_box = QLineEdit()
         self.delay_limit_box.setMaximumWidth(text_box_width-24)
@@ -266,13 +327,14 @@ class InitParamWidget(QWidget):
         self.delay_limit_box.setText("10e-12")
         
         # Leftover noise
-        self.label_leftover = QLabel("Fit amplitude noise?")
+        self.label_leftover = QLabel("Correct amplitude noise?")
         self.label_leftover.setMaximumWidth(label_width)
         self.label_leftover.setMaximumHeight(text_box_height)
         self.options_leftover = QComboBox()
         self.options_leftover.addItems(['No','Yes'])
         self.options_leftover.setMaximumWidth(text_box_width-75)
         self.options_leftover.setMaximumHeight(text_box_height)
+        self.options_leftover.setCurrentIndex(1)
         self.leftovervaluea_label = QLabel("Absolute value of         a")
         self.leftovera_limit_box = QLineEdit()
         self.leftovera_limit_box.setMaximumWidth(text_box_width-24)
@@ -281,9 +343,8 @@ class InitParamWidget(QWidget):
         #self.leftovervaluec_label = QLabel(" c")
         #self.leftoverc_limit_box = QLineEdit()
         #self.leftoverc_limit_box.setMaximumWidth(text_box_width-24)  
-             
         # Dilatation
-        self.label_dilatation = QLabel("Fit dilatation?")
+        self.label_dilatation = QLabel("Correct dilatation?")
         self.label_dilatation.setMaximumWidth(label_width)
         self.label_dilatation.setMaximumHeight(text_box_height)
         self.options_dilatation = QComboBox()
@@ -302,13 +363,14 @@ class InitParamWidget(QWidget):
         self.dilatationb_limit_box.setText("10e-12")
         
         #periodic sampling
-        self.label_periodic_sampling = QLabel("Fit periodic sampling?")
+        self.label_periodic_sampling = QLabel("Correct periodic sampling?")
         self.label_periodic_sampling.setMaximumWidth(label_width)
         self.label_periodic_sampling.setMaximumHeight(text_box_height)
         self.options_periodic_sampling = QComboBox()
         self.options_periodic_sampling.addItems(['No','Yes'])
         self.options_periodic_sampling.setMaximumWidth(text_box_width-75)
         self.options_periodic_sampling.setMaximumHeight(text_box_height)
+        self.options_periodic_sampling.setCurrentIndex(1)
         self.periodic_sampling_freq_label = QLabel("Frequency [THz]")
         self.periodic_sampling_freq_limit_box = QLineEdit()
         self.periodic_sampling_freq_limit_box.setText("7.5")
@@ -320,6 +382,9 @@ class InitParamWidget(QWidget):
         # Organisation layout
         self.hlayout6=QHBoxLayout()
         self.hlayout7=QHBoxLayout()
+        #TOVERIFY:
+        self.hlayout99=QHBoxLayout()
+        
         self.hlayout8=QHBoxLayout()
         self.hlayout9=QHBoxLayout()
         self.hlayout10=QHBoxLayout()
@@ -343,6 +408,9 @@ class InitParamWidget(QWidget):
 
         self.hlayout7.addWidget(self.label_path_without_sample,20)
         self.hlayout7.addWidget(self.button_ask_path_without_sample,17)
+        
+        self.hlayout99.addWidget(self.label_match_sample_ref,20)
+        self.hlayout99.addWidget(self.button_match_sample_ref,17)
         
         self.hlayout11.addWidget(self.label_data_length,20)
         self.hlayout11.addWidget(self.button_ask_data_length,17)
@@ -374,7 +442,8 @@ class InitParamWidget(QWidget):
         self.hlayout14.addWidget(self.periodic_sampling_freq_label,0)
         self.hlayout14.addWidget(self.periodic_sampling_freq_limit_box,1)
         
-        self.hlayout10.addWidget(self.button_parameters)
+        #TOADD:
+        # self.hlayout10.addWidget(self.button_parameters)
         
         self.hlayout17.addWidget(self.LFfilter_label,1)
         self.hlayout17.addWidget(self.LFfilter_choice,0)
@@ -397,6 +466,7 @@ class InitParamWidget(QWidget):
         
         sub_layoutv2.addLayout(self.hlayout6)
         sub_layoutv2.addLayout(self.hlayout7)
+        sub_layoutv2.addLayout(self.hlayout99)
         sub_layoutv2.addLayout(self.hlayout11)
         
         sub_layoutv3.addLayout(self.hlayout9)
@@ -429,7 +499,8 @@ class InitParamWidget(QWidget):
         filter_group.setTitle('Filters')
         filter_group.setLayout(sub_layoutv)
         self.vlayoutmain.addWidget(filter_group)
-        self.vlayoutmain.addWidget(self.button)
+        #TOADD
+        # self.vlayoutmain.addWidget(self.button)
         self.vlayoutmain.addWidget(init_group2)
 
         
@@ -456,8 +527,28 @@ class InitParamWidget(QWidget):
         
     def open_dialog(self):
         self.dialog.exec_()
+    
+    def open_dialog_match(self):
+        if csts.refs:
+            self.dialog_match.ui.setupUi(self.dialog_match, self.controler)
+        # self.button_match_sample_ref.setEnabled(False)
+            self.dialog_match.exec_()
+        else:
+            self.dialog_match.ui.show_info_noref_messagebox()
+    
+    # def on_click_print(self):
+        # print(self.LFfilter_choice.currentIndex())
+        # print(self.HFfilter_choice.currentIndex())
+        # print(self.start_box.text())
+        # print(self.end_box.text())
+        # print(self.sharp_box.text())
+        # print(self.options_super.currentIndex())
+        
 
-    def on_click(self):
+    def on_click(self,data_,ref_):
+        # ============================================================================ #
+        #                   change funtion to remove preview of graph                  #
+        # ============================================================================ #
         global graph_option_2, preview
         try:
             Lfiltering_index = self.LFfilter_choice.currentIndex()
@@ -466,6 +557,7 @@ class InitParamWidget(QWidget):
             cutend   = float(self.end_box.text())
             cutsharp = float(self.sharp_box.text())
             modesuper = self.options_super.currentIndex()
+            # print(f" super = {modesuper}")
             
             trace_start = 0
             trace_end = -1
@@ -481,14 +573,22 @@ class InitParamWidget(QWidget):
                 self.button_ask_data_length.setText(str(trace_start)+"-"+str(trace_end))
 
             try:
-                self.controler.choices_ini(self.path_data, self.path_data_ref, trace_start, trace_end, time_start, time_end,
-                                               Lfiltering_index, Hfiltering_index, cutstart, 
-                                               cutend, cutsharp, modesuper, apply_window)
-                graph_option_2='Pulse (E_field)'
+                # self.controler.choices_ini(self.path_data, self.path_data_ref, trace_start, trace_end, time_start, time_end,
+                # ============================================================================ #
+                #            change: modify function to select sample and ref files            #
+                # ============================================================================ #
+                # self.controler.choices_ini(data_, self.path_data_ref, trace_start, trace_end, time_start, time_end,Lfiltering_index, Hfiltering_index, cutstart,cutend, cutsharp, modesuper, apply_window)
+                csts.modesuper = modesuper
+                self.controler.choices_ini(data_, ref_, trace_start, trace_end, time_start, time_end,Lfiltering_index, Hfiltering_index, cutstart,cutend, cutsharp, modesuper, apply_window)
+                # ============================= change : comment ============================= #
+                # graph_option_2='Pulse (E_field)'
                 preview = 1
-                self.graph_widget.refresh()
-                self.controler.refreshAll3(" Data initialization done | "+str(self.controler.data.numberOfTrace)+ " time traces loaded between ["+ str(int(self.controler.data.time[0])) + " , " + str(int(self.controler.data.time[-1]))+ "] ps")
+                # ============================= change : comment ============================= #
+                # self.graph_widget.refresh()
+                # ================ change: add text to mention number of files =============== #
+                self.controler.refreshAll3(" Data initialization done | "+str(self.controler.data.numberOfTrace)+ " time traces loaded between ["+ str(int(self.controler.data.time[0])) + " , " + str(int(self.controler.data.time[-1]))+ "] ps" + "; for " + str(len(csts.files)) + " files")
             except Exception as e:
+                # ---------------------------------------------------------------------------- #
                 print(e)
                 self.controler.error_message_path3()
                 return(0)
@@ -497,6 +597,7 @@ class InitParamWidget(QWidget):
             self.controler.refreshAll3("Invalid parameters, please enter real values only")
         self.controler.initialised=1
         self.controler.optim_succeed = 0
+        print(f"submit files finished")
 
     def on_click_param(self):
         global preview, graph_option_2
@@ -548,6 +649,7 @@ class InitParamWidget(QWidget):
                                                fit_periodic_sampling, periodic_sampling_freq_limit,
                                               fit_leftover_noise ,leftover_guess, leftover_limit)
                 self.controler.refreshAll3(" Parameters initialization done")
+                print(f"submit parameters done")
                 self.controler.initialised_param = 1
                 self.controler.optim_succeed = 0
             except Exception as e:
@@ -555,43 +657,79 @@ class InitParamWidget(QWidget):
                 return(0)
         except:
             self.controler.refreshAll3("Invalid parameters, please enter real positive values only and valid frequency range")
-            
-        try:
-            preview = 1
-            self.graph_widget.refresh()
-        except:
-            print("unknown error")
+        # ======================= change: remove graph preview ======================= #
+        # try:
+            # preview = 1
+            # self.graph_widget.refresh()
+        # except:
+            # print("unknown error")
+        # ---------------------------------------------------------------------------- #
             
     def get_path_data(self):
-        options = QFileDialog.Options()
-        options |= QFileDialog.DontUseNativeDialog
-        fileName, _ = QFileDialog.getOpenFileName(self,"Data (hdf5 file)", options=options, filter="Hdf5 File(*.h5)")
+        # # options = QFileDialog.Options()
+        # # options |= QFileDialog.DontUseNativeDialog
+        # # fileName, _ = QFileDialog.getOpenFileName(self,"Data (hdf5 file)", options=options, filter="Hdf5 File(*.h5)")
+        # =========================== initialize csts.files ========================== #
+        csts.files = []
+        # ============================================================================ #
+        #                     change function to get multiple files                    #
+        #    store the files in as a list in another python file called constants.py   #
+        # ============================================================================ #
+        # ===================== change : change to get filenames ===================== #
+        # fileName, _ = QFileDialog.getOpenFileName(self,"Data (hdf5 file)", filter="Hdf5 File(*.h5)")
+        fileNames, _ = QFileDialog.getOpenFileNames(parent=self,caption=f"Select multiple h5 files",directory=f"{csts.init_directory}", filter="Hdf5 File(*.h5)")
+        # ================== change: fill files list with filenames ================== #
+        csts.files = fileNames
+        # print(fileNames)
         try:
-            self.path_data=fileName
-            name=os.path.basename(fileName)
+            name = path_(fileNames[0]) #make sure files are loaded 
+            self.path_data=path_(fileNames[0]).parent # a verifier 
+            csts.init_directory = self.path_data # to make default directory
+            # name=os.path.basename(fileName)
             if name:
-                self.button_ask_path_data.setText(name)
+                # ======================== change: change butoon text ======================== #
+                self.button_ask_path_data.setText(f"loadded {len(csts.files)} files")
+                # self.button_ask_path_data.setText(name)
+                self.controler.refreshAll3(f"loaded files:\n{[path_(csts.files[i]).name for i in range(len(csts.files))]}")
+        # ---------------------------------------------------------------------------- #
             else:
                 self.button_ask_path_data.setText("browse")
             self.controler.initialised = 0
         except:
-            self.controler.error_message_path()
+            self.button_ask_path_data.setText("No files were loaded")
+            self.controler.error_message_path3()
 
     def get_path_data_ref(self):
-        options = QFileDialog.Options()
-        options |= QFileDialog.DontUseNativeDialog
-        fileName, _ = QFileDialog.getOpenFileName(self,"Reference Data (hdf5 file)", options=options,  filter="Hdf5 File(*.h5)")
+        # # options = QFileDialog.Options()
+        # # options |= QFileDialog.DontUseNativeDialog
+        # # fileName, _ = QFileDialog.getOpenFileName(self,"Reference Data (hdf5 file)", options=options,  filter="Hdf5 File(*.h5)")
+        # =========================== initialize csts.refs =========================== #
+        csts.refs = []
+        # fileName, _ = QFileDialog.getOpenFileName(self,"Reference Data (hdf5 file)",  filter="Hdf5 File(*.h5)")
+        # ==================================== new =================================== #
+        fileNames, _ = QFileDialog.getOpenFileNames(parent=self,caption=f"Select multiple reference h5 files",directory=f"{csts.init_directory}", filter="Hdf5 File(*.h5)")
+        # ================ cahnge : fill refs list with ref filenames ================ #
+        csts.refs = fileNames
         try:
-            self.path_data_ref=fileName
-            name=os.path.basename(fileName)
-            if name:
-                self.button_ask_path_without_sample.setText(name)
+            names = [path_(fileNames[i]) for i in range(len(csts.refs))] # make sure files are loaded
+            self.path_data_ref = path_(fileNames[0]).parent
+            # self.path_data_ref=fileName
+            # name=os.path.basename(fileName)
+            # if name:
+            # ================================== change ================================== #
+            if names:
+                # self.button_ask_path_without_sample.setText(name)
+                self.button_ask_path_without_sample.setText(f"loaded {len(csts.refs)} refs")
+                self.controler.refreshAll3(f"loaded refs:\n{[path_(csts.refs[i]).name for i in range(len(csts.refs))]}")
+            # ---------------------------------------------------------------------------- #
             else:
                 self.button_ask_path_without_sample.setText("browse")
             self.controler.initialised = 0
+            self.ref_loaded = True
             
         except:
-            self.controler.error_message_path()
+            self.button_ask_path_without_sample.setText("No files were loaded")
+            self.controler.error_message_path3()
 
     def pressed_loading(self):
         self.controler.loading_text3()
@@ -656,9 +794,9 @@ class Ui_Dialog(object):
         self.sub_layoutv10.addLayout(self.hlayout0)
         self.sub_layoutv10.addLayout(self.hlayout1)
         self.sub_layoutv10.addLayout(self.hlayout2)
-  
+
     def action(self):
-  
+
         self.length_initialized = 0
         try:
             if self.length_start_limit_box.text() or self.length_end_limit_box.text():
@@ -669,7 +807,7 @@ class Ui_Dialog(object):
                     raise ValueError
                 else:
                     self.trace_start = trace_start
-                   
+                
                 if trace_end  < 0:
                         raise ValueError
                 else:
@@ -683,6 +821,8 @@ class Ui_Dialog(object):
                 time_end = float(self.time_end_limit_box.text())
                 #TODO
                 #conditions for time
+
+                self.length_initialized = 1
             
             self.dialog.close()
         except Exception as e:
@@ -690,6 +830,190 @@ class Ui_Dialog(object):
             self.controler.refreshAll3("Invalid values, please enter positive values and trace start number must be less than or equal to trace end")
             return(0)
 
+class Ui_Dialog_match(object):
+    def setupUi(self, Dialog, controler):
+        self.controler = controler
+        
+        
+        self.lists_ordered = 0
+        # ======================= keep the same for the moment ======================= #
+        self.dialog = Dialog
+        self.dialog.resize(400, 126)
+        # ---------------------------------------------------------------------------- #
+        self.dialog.setWindowTitle("match samples to references")
+        
+        i = 0
+        i2 = 0
+        
+        self.label_files = QLabel(f"Files")
+        
+        self.labels_files_text = [f"file {i}" for i in range(len(csts.files))]
+        self.labels_files = [QLabel(f"file {label}") for label in self.labels_files_text ]
+        # print(self.labels_files)
+        
+        
+        self.comboboxes_files = [QComboBox() for i in range(len(csts.files))]
+        for combobox in self.comboboxes_files:
+            combobox.addItems([path_(csts.files[i]).name for i in range(len(csts.files))])
+            combobox.setCurrentIndex(i)
+            i+=1
+        
+        # print(self.comboboxes_files)
+        
+        self.label_refs = QLabel(f"Reference Files")
+        
+        self.labels_refs_text = [f"ref {i}" for i in range(len(csts.files))]
+        self.labels_refs = [QLabel(f"file {label}") for label in self.labels_refs_text ]
+        
+        self.comboboxes_refs = [QComboBox() for i in range(len(csts.files))]
+        for combobox in self.comboboxes_refs:
+            combobox.addItems([path_(csts.refs[i]).name for i in range(len(csts.refs))])
+            combobox.setCurrentIndex(i2)
+            i2+=1
+        
+        
+        self.button_match = QPushButton(f"Match")
+        self.button_match.resize(100, 50)
+        self.button_match.clicked.connect(self.action_match)
+        
+        
+        if not csts.files:
+            self.show_warning_messagebox()
+        
+        
+        try:
+            if csts.refs:
+                if self.comboboxes_refs[-1].currentText() == "" :
+                    self.show_critical_messagebox()
+            else:
+                self.show_info_noref_messagebox()
+        except:
+            pass
+
+        self.button_match.setEnabled(False)
+        self.verify_last_combo()
+        
+        for combobox in self.comboboxes_refs:
+            combobox.activated.connect(self.verify_last_combo)
+        
+        
+        self.vlayout = QVBoxLayout()
+        self.hlayout = QHBoxLayout()
+        self.hlayout_button  = QHBoxLayout()
+        
+        
+        for i in range(len(csts.files)):
+            hlayout = QHBoxLayout()
+            hlayout.addWidget(self.labels_files[i])
+            hlayout.addWidget(self.comboboxes_files[i])
+            hlayout.addWidget(self.labels_refs[i])
+            hlayout.addWidget(self.comboboxes_refs[i])
+            self.vlayout.addLayout(hlayout)
+            
+        # print(self.vlayout)
+            
+            # self.vlayout_files.addWidget(self.labels_files[i])
+            # self.vlayout_files.addWidget(self.comboboxes_files[i])
+            # self.vlayout_files.addWidget(self.labels_refs[i])
+            # self.vlayout_files.addWidget(self.comboboxes_refs[i])
+        
+        # for i in range(len(csts.files)):
+        
+        self.hlayout_button.addWidget(self.button_match)
+        
+        
+        
+        self.general_layout = QVBoxLayout(self.dialog)
+        self.general_layout.addLayout(self.vlayout)
+        self.general_layout.addLayout(self.hlayout_button)
+        
+        
+        self.general_layout.deleteLater()
+
+    def action_match(self):
+        self.lists_ordered = 0
+        # self.length_initialized = 0
+        # print(csts.files)
+        try:
+            if self.comboboxes_refs[-1].currentText() != "":
+                for i, combobox in enumerate(self.comboboxes_files):
+                    # print(combobox.currentText())
+                    # print(csts.files[i])
+                    csts.files[i] = path_(csts.files[i]).parent.joinpath(combobox.currentText())
+                # print(csts.files)
+                for i, combobox in enumerate(self.comboboxes_refs):
+                    # print(combobox.currentText())
+                    if i < len(csts.refs):
+                        csts.refs[i] = path_(csts.refs[i]).parent.joinpath(combobox.currentText())
+                    elif i >= len(csts.refs):
+                        csts.refs.append(path_(csts.refs[0]).parent.joinpath(combobox.currentText()))
+                # print(f"refs={(csts.refs)}")
+
+            self.dialog.close()
+        except Exception as e:
+            print(e)
+            self.controler.refreshAll3("Error ")
+            return(0)
+    
+    def verify_last_combo(self):
+        # print(f"verifying...")
+        if csts.refs and self.comboboxes_refs[-1].currentText()!="":
+            self.button_match.setEnabled(True)
+        else:
+            self.button_match.setEnabled(False)
+    
+    def show_critical_messagebox(self):
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Critical)
+        
+        # ====================== setting message for Message Box ===================== #
+        msg.setText("All samples files must be matched to a reference file")
+        
+        # ===================== setting Message box window title ===================== #
+        msg.setWindowTitle("Missing Reference File")
+    
+        # ===================== declaring buttons on Message Box ===================== #
+        # msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        msg.setStandardButtons(QMessageBox.Ok)
+    
+        # =============================== start the app ============================== #
+        retval = msg.exec_()
+
+    def show_warning_messagebox(self):
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Warning)
+
+        # ====================== setting message for Message Box ===================== #
+        msg.setText("There is nothing to match !")
+    
+        # ===================== setting Message box window title ===================== #
+        msg.setWindowTitle("No data files were loaded")
+    
+        # ===================== declaring buttons on Message Box ===================== #
+        # msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        msg.setStandardButtons(QMessageBox.Ok)
+    
+        # =============================== start the app ============================== #
+        retval = msg.exec_()
+    
+    def show_info_noref_messagebox(self):
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Information)
+        # ====================== setting message for Message Box ===================== #
+        msg.setText("There is nothing to match !")
+    
+        # ===================== setting Message box window title ===================== #
+        msg.setWindowTitle("No ref files were loaded")
+    
+        # ===================== declaring buttons on Message Box ===================== #
+        # msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        msg.setStandardButtons(QMessageBox.Ok)
+    
+        # =============================== start the app ============================== #
+        retval = msg.exec_()
+    
+    
+    
 class TextBoxWidget(QTextEdit):
     def __init__(self, parent, controler):
         super().__init__(parent)
@@ -765,21 +1089,20 @@ class Optimization_choices(QGroupBox):
         action_widget_width=150
         corrective_width_factor=-12
         text_box_height = 22
-        
-        
         # Algorithm choice
         self.label_algo = QLabel("Algorithm - delay/amplitude/dilatation")
         self.label_algo.setMaximumHeight(text_box_height)
         self.options_algo = QComboBox()
         self.options_algo.addItems(['NumPy optimize swarm particle',
-                                    'ALPSO without parallelization',
-                                    'ALPSO with parallelization',
-                                    'SLSQP (pyOpt)',
-                                    'SLSQP (pyOpt with parallelization)',
+                                    '[In Dev]ALPSO without parallelization',
+                                    '[In Dev]ALPSO with parallelization',
+                                    '[In Dev]SLSQP (pyOpt)',
+                                    '[In Dev]SLSQP (pyOpt with parallelization)',
                                     'L-BFGS-B',
                                     'SLSQP (scipy)',
                                     'Dual annealing'])
         self.options_algo.setMaximumHeight(text_box_height)
+        self.options_algo.setCurrentIndex(6)
         self.options_algo.currentIndexChanged.connect(self.refresh_param)
         
         
@@ -798,6 +1121,7 @@ class Optimization_choices(QGroupBox):
         self.enter_niter.setMaximumWidth(action_widget_width +corrective_width_factor)
         self.enter_niter.setMaximumHeight(30)
         self.enter_niter.setMaximumHeight(text_box_height)
+        self.enter_niter.setText('1000')
     
             # Number of iterations ps
         self.label_niter_ps = QLabel("Iterations")
@@ -816,13 +1140,35 @@ class Optimization_choices(QGroupBox):
         self.enter_swarmsize.setMaximumHeight(30)
         self.enter_swarmsize.setMaximumHeight(text_box_height)
         
+        self.refresh_param()
         
             # Button to launch optimization
         self.begin_button = QPushButton("Begin Optimization")
-        self.begin_button.clicked.connect(self.begin_optimization)
+        #TOCHANGE
+        #TOVERIFY
+        # self.begin_button.clicked.connect(self.begin_optimization)
+        self.begin_button.clicked.connect(self.begin_optimizations)
+        # self.begin_button.clicked.connect(self.controler.begin_optimization)
         self.begin_button.pressed.connect(self.pressed_loading)
-        #self.begin_button.setMaximumWidth(50)
         self.begin_button.setMaximumHeight(text_box_height)
+        self.begin_button.setStyleSheet("background-color : rgb(0, 200, 83)")
+        
+            # Button to stop optimization
+        self.break_button = QPushButton("Stop Optimization (In Dev)")
+        self.break_button.pressed.connect(self.break_loading)
+        self.break_button.clicked.connect(self.controler.stop_optimization)
+        self.break_button.setMaximumHeight(text_box_height)
+        self.break_button.setStyleSheet("background-color : rgb(255, 0, 0)")
+        
+        #TEST:
+        # ============== add a progress bar to show the overall progress ============= #
+        self.opt_progressbar_label = QLabel(f"Batch progress")
+        self.opt_progressbar = QProgressBar(self,objectName="BlueProgressBar")
+        sub_layoout_pb  = QHBoxLayout()
+        sub_layoout_pb.addWidget(self.opt_progressbar_label)
+        sub_layoout_pb.addWidget(self.opt_progressbar)
+        # ---------------------------------------------------------------------------- #
+        
         
         # Wiget to see how many process are going to be used for the omptimization
         self.label_nb_proc = QLabel("How many process do you want to use?")
@@ -854,23 +1200,108 @@ class Optimization_choices(QGroupBox):
         sub_layout_h_2.addWidget(self.options_algo_ps,0)
         sub_layout_h_2.addWidget(self.label_niter_ps,0)
         sub_layout_h_2.addWidget(self.enter_niter_ps,0)
-        sub_layout_h_8.addWidget(self.begin_button)
+        sub_layout_h_8.addWidget(self.begin_button,0)
+        sub_layout_h_8.addWidget(self.break_button,0)
 
         # Vertical layout   
         main_layout.addLayout(sub_layout_h_7)
         main_layout.addLayout(sub_layout_h_3)
         main_layout.addLayout(sub_layout_h_2)
         main_layout.addLayout(sub_layout_h_8)
-        
+        # ====================== progress bar add to main_layout ===================== #
+        main_layout.addLayout(sub_layoout_pb)
+        # ---------------------------------------------------------------------------- #
         self.setLayout(main_layout)
 
 
 
     def pressed_loading(self):
         self.controler.loading_text3()
+    def break_loading(self):
+        self.controler.loading_text_break()
+
+# ============================================================================ #
+#                              Begin optimization                              #
+# ============================================================================ #
+# ============================================================================ #
+#           define new begin_optimization func to loop for all files           #
+# ============================================================================ #
+# ============================================================================ #
+# ======================= be careful with parent.parent ====================== #
+# ============================================================================ #
+
+    def begin_optimizations(self):
+        # try:
+        self.opt_progressbar.setMaximum(len(csts.files))
+        if self.parent.parent.ref_loaded and len(csts.refs) != len(csts.files):
+            raise ValueError
+        i=0
+        for file in csts.files:
+            print(file)
+            if len(csts.refs) != 0:
+                for ref in csts.refs:
+                    self.begin_optimization(file,ref)
+            else:
+                self.begin_optimization(file)
+            i+=1
+            self.controler.refreshAll3(f"\nfile {i}/{len(csts.files)} finished optimization")
+            self.parent.parent.text_box.repaint()
+            if not self.parent.parent.ref_loaded:
+                if csts.save_bools["mean"]:
+                    self.parent.parent.save_param.save_mean_batch(file)
+            elif  self.parent.parent.ref_loaded:
+                self.parent.parent.save_param.save_mean_batch(file,ref)
+            
+            if csts.save_bools["std_time"]:    
+                self.parent.parent.save_param.save_std_time_batch(file)
+            if csts.save_bools["std_freq"]:    
+                self.parent.parent.save_param.save_std_freq_batch(file)
+            
+            if csts.save_bools["correction_param"]:
+                self.parent.parent.save_param.save_param_batch(file)
+            
+            if csts.save_bools["time_traces"]:
+                self.parent.parent.save_param.save_traces_batch(file)
+                
+            if csts.save_bools["noise_matrix"]:
+                self.parent.parent.save_param.save_cov_batch(file)
         
-    def begin_optimization(self):
+        # except Exception:
+            # print(f"you should match references to number of sample files")
+            # self.controler.refreshAll3(f"You should match references to number of sample files")
+    
+        # ============================================================================ #
+        #           add all optimized files to list to be able to plot later           #
+        # ============================================================================ #
+            csts.myinput.append(self.controler.myinput)
+            csts.myreferencedata.append(self.controler.myreferencedata)
+            csts.ncm.append(self.controler.ncm) 
+            csts.ncm_inverse.append(self.controler.ncm_inverse) 
+            csts.reference_number.append(self.controler.reference_number) 
+            csts.mydatacorrection.append(self.controler.mydatacorrection) 
+            csts.delay_correction.append(self.controler.delay_correction) 
+            csts.dilatation_correction.append(self.controler.dilatation_correction) 
+            csts.leftover_correction.append(self.controler.leftover_correction) 
+            csts.myglobalparameters.append(self.controler.myglobalparameters) 
+            csts.fopt.append(self.controler.fopt) 
+            csts.fopt_init.append(self.controler.fopt_init) 
+            csts.mode.append(self.controler.mode)
+            self.opt_progressbar.setValue(i)
+        self.parent.parent.graph_widget.add_items_to_combobox(csts.files)
+        # ---------------------------------------------------------------------------- #
+
+    
+    def begin_optimization(self, file,ref_file=None):
         global preview
+        # self.print_ui_params()
+        # self.method = InitParamWidget(InitParamWidget.parent)
+        # InitParamWidget.on_click(InitParamWidget.parent,csts.files[0])
+        # InitParamWidget.on_click_param(self)
+        #TOVERIFY
+        # self.parent.parent.on_click(csts.files[0])
+        self.parent.parent.on_click(file,ref_file)
+        self.parent.parent.on_click_param()
+        
         t1 = time.time()
         global graph_option_2
         submitted = self.submit_algo_param()    #get values from optimisation widget
@@ -881,7 +1312,7 @@ class Optimization_choices(QGroupBox):
             except:
                 self.controler.message_log_tab3("You don't have MPI for parallelization, we'll use only 1 process")
                 nb_proc=1
-            if self.controler.is_temp_file_5 == 1:
+            if self.controler.optim.vars_temp_file_5 != None:
                 self.controler.begin_optimization(nb_proc)
                 graph_option_2='Pulse (E_field)'
             else:
@@ -900,7 +1331,6 @@ class Optimization_choices(QGroupBox):
         else :
             self.label_swarmsize.hide()
             self.enter_swarmsize.hide()
-            
             
     def submit_algo_param(self):
         choix_algo=self.algo_index
@@ -961,41 +1391,78 @@ class Saving_parameters(QGroupBox):
         corrective_width_factor=-12
 
 
-        self.button_save_mean = QPushButton('Mean (.txt)', self)
-        self.button_save_mean.clicked.connect(self.save_mean)
-
-        self.button_save_mean.setMaximumHeight(text_box_height)    
+        # self.button_save_mean = QPushButton('Mean (.txt)', self)
+        # self.button_save_mean.clicked.connect(self.save_mean)
+        # self.button_save_mean.setMaximumHeight(text_box_height)    
         
-        self.button_save_traces = QPushButton('Time traces (.h5)', self)
-        self.button_save_traces.clicked.connect(self.save_traces)
-        self.button_save_traces.setMaximumHeight(text_box_height) 
+        self.checkbox_save_mean = QCheckBox('Mean', self)
+        self.checkbox_save_mean.stateChanged.connect(self.check_save_mean)
         
-        self.button_save_param = QPushButton('Correction param (.txt)', self)
-        self.button_save_param.clicked.connect(self.save_param)
-        self.button_save_param.setMaximumHeight(text_box_height)
+        self.checkbox_save_std_time = QCheckBox('Std time', self)
+        self.checkbox_save_std_time.stateChanged.connect(self.check_save_std_time)
         
-        self.button_save_cov = QPushButton('Noise matrix inverse (.h5)', self)
-        self.button_save_cov.clicked.connect(self.save_cov)
-        self.button_save_cov.setMaximumHeight(text_box_height)
+        self.checkbox_save_std_freq = QCheckBox('Std freq', self)
+        self.checkbox_save_std_freq.stateChanged.connect(self.check_save_std_freq)
         
-        self.button_save_std_time = QPushButton('Std time (.txt)', self)
-        self.button_save_std_time.clicked.connect(self.save_std_time)
-        self.button_save_std_time.setMaximumHeight(text_box_height) 
+        self.checkbox_save_traces = QCheckBox('Time traces', self)
+        self.checkbox_save_traces.stateChanged.connect(self.check_save_traces)
         
-        self.button_save_std_freq = QPushButton('Std freq (.txt)', self)
-        self.button_save_std_freq.clicked.connect(self.save_std_freq)
-        self.button_save_std_freq.setMaximumHeight(text_box_height) 
+        self.checkbox_save_param = QCheckBox('Correction param', self)
+        self.checkbox_save_param.stateChanged.connect(self.check_save_param)
+        
+        self.checkbox_save_cov = QCheckBox('Noise matrix inverse', self)
+        self.checkbox_save_cov.stateChanged.connect(self.check_save_cov)
+        
+        # self.button_save_traces = QPushButton('Time traces (.h5)', self)
+        # self.button_save_traces.clicked.connect(self.save_traces)
+        # self.button_save_traces.setMaximumHeight(text_box_height) 
+        
+        # self.button_save_param = QPushButton('Correction param (.txt)', self)
+        # self.button_save_param.clicked.connect(self.save_param)
+        # self.button_save_param.setMaximumHeight(text_box_height)
+        
+        # self.button_save_cov = QPushButton('Noise matrix inverse (.h5)', self)
+        # self.button_save_cov.clicked.connect(self.save_cov)
+        # self.button_save_cov.setMaximumHeight(text_box_height)
+        
+        # self.button_save_std_time = QPushButton('Std time (.txt)', self)
+        # self.button_save_std_time.clicked.connect(self.save_std_time)
+        # self.button_save_std_time.setMaximumHeight(text_box_height) 
+        
+        # self.button_save_std_freq = QPushButton('Std freq (.txt)', self)
+        # self.button_save_std_freq.clicked.connect(self.save_std_freq)
+        # self.button_save_std_freq.setMaximumHeight(text_box_height) 
+        
+        # self.button_save_mean.setEnabled(False)
+        # self.button_save_traces.setEnabled(False)
+        # self.button_save_param.setEnabled(False)
+        # self.button_save_cov.setEnabled(False)
+        # self.button_save_std_time.setEnabled(False)
+        # self.button_save_std_freq.setEnabled(False)3
         
         sub_layout_h1=QHBoxLayout()
         sub_layout_h2=QHBoxLayout()
         sub_layout_h3=QHBoxLayout()            
 
-        sub_layout_h3.addWidget(self.button_save_mean,0)
-        sub_layout_h3.addWidget(self.button_save_param,0)
-        sub_layout_h3.addWidget(self.button_save_traces,0)
-        sub_layout_h2.addWidget(self.button_save_std_time,0)
-        sub_layout_h2.addWidget(self.button_save_std_freq,0)
-        sub_layout_h2.addWidget(self.button_save_cov,0)
+        # sub_layout_h3.addWidget(self.button_save_mean,0)
+        # sub_layout_h3.addWidget(self.button_save_param,0)
+        # sub_layout_h3.addWidget(self.button_save_traces,0)
+        # sub_layout_h2.addWidget(self.button_save_std_time,0)
+        # sub_layout_h2.addWidget(self.button_save_std_freq,0)
+        # sub_layout_h2.addWidget(self.button_save_cov,0)
+        sub_layout_h3.addWidget(self.checkbox_save_mean,0)
+        sub_layout_h3.addWidget(self.checkbox_save_param,0)
+        sub_layout_h3.addWidget(self.checkbox_save_traces,0)
+        sub_layout_h2.addWidget(self.checkbox_save_std_time,0)
+        sub_layout_h2.addWidget(self.checkbox_save_std_freq,0)
+        sub_layout_h2.addWidget(self.checkbox_save_cov,0)
+        
+        self.checkbox_save_mean.setChecked(True)
+        self.checkbox_save_traces.setChecked(False)
+        self.checkbox_save_param.setChecked(False)
+        self.checkbox_save_cov.setChecked(False)
+        self.checkbox_save_std_time.setChecked(True)
+        self.checkbox_save_std_freq.setChecked(True)
 
         
         self.main_layout=QVBoxLayout()
@@ -1004,164 +1471,491 @@ class Saving_parameters(QGroupBox):
         
         self.setLayout(self.main_layout)
         
-    def save_cov(self):
+    def check_save_mean(self):
+        if self.checkbox_save_mean.isChecked():
+            csts.save_bools["mean"] = True
+            self.controler.refreshAll3(f"\nMean will be saved\n")
+        elif not self.checkbox_save_mean.isChecked():
+            csts.save_bools["mean"] = False
+            self.controler.refreshAll3(f"\nMean will NOT be saved\n")
+    
+    def check_save_std_time(self):        
+        if self.checkbox_save_std_time.isChecked():
+            csts.save_bools["std_time"] = True
+            self.controler.refreshAll3(f"\nStd time will be saved\n")
+        if not self.checkbox_save_std_time.isChecked():
+            csts.save_bools["std_time"] = False
+            self.controler.refreshAll3(f"\nStd time will NOT be saved\n")
+    
+    def check_save_std_freq(self):    
+        if self.checkbox_save_std_freq.isChecked():
+            csts.save_bools["std_freq"] = True
+            self.controler.refreshAll3(f"\nStd freq will be saved\n")
+        if not self.checkbox_save_std_freq.isChecked():
+            csts.save_bools["std_freq"] = False
+            self.controler.refreshAll3(f"\nStd freq will NOT be saved\n")
+    
+    def check_save_traces(self):    
+        if self.checkbox_save_traces.isChecked():
+            csts.save_bools["time_traces"] = True
+            self.controler.refreshAll3(f"\nTime traces will be saved\n")
+        elif not self.checkbox_save_traces.isChecked():
+            csts.save_bools["time_traces"] = False
+            self.controler.refreshAll3(f"\nTime traces will NOT be saved\n")
+    
+    def check_save_param(self):
+        if self.checkbox_save_param.isChecked():
+            csts.save_bools["correction_param"] = True
+            self.controler.refreshAll3(f"\nCorrection parameters will be saved\n")
+        if not self.checkbox_save_param.isChecked():
+            csts.save_bools["correction_param"] = False
+            self.controler.refreshAll3(f"\nCorrection parameters will NOT be saved\n")
+    
+    def check_save_cov(self):    
+        if self.checkbox_save_cov.isChecked():
+            csts.save_bools["noise_matrix"] = True
+            self.controler.refreshAll3(f"\nNoise matrix will be saved\n")
+        if not self.checkbox_save_cov.isChecked():
+            csts.save_bools["noise_matrix"] = False
+            self.controler.refreshAll3(f"\nNoise matrix will NOT be saved\n")
+        
+        
+        # print(csts.save_bools)
+        
+        # print(f"Will save mean" if csts.save_bools["mean"] else f"Will not save mean")
+        # print(f"Will save std time" if csts.save_bools["std_time"] else f"Will not save std time")
+        # print(f"Will save std freq" if csts.save_bools["std_freq"] else f"Will not save std freq")
+    
+    # def save_cov(self):
+        # global preview
+        # if self.controler.initialised:
+            # try:
+                # # options = QFileDialog.Options()
+                # # options |= QFileDialog.DontUseNativeDialog
+                # # fileName, _ = QFileDialog.getSaveFileName(self,"Covariance / Noise convolution matrix","noise.h5","HDF5 (*.h5)", options=options)
+                # fileName, _ = QFileDialog.getSaveFileName(self,"Covariance / Noise convolution matrix","noise.h5","HDF5 (*.h5)")
+                # try:
+                    # name=os.path.basename(fileName)
+                    # path = os.path.dirname(fileName)
+                    # if name:
+                        # saved = self.controler.save_data(name, path, 5)
+                        # if saved:
+                            # if not self.controler.optim_succeed:
+                                # preview = 1
+                            # self.controler.refreshAll3(" Saving matrix - Done")
+                        # else:
+                            # print("Something went wrong")          
+                # except:
+                    # self.controler.error_message_output_filename()
+            # except:
+                # self.controler.error_message_output_filename()
+                # return(0)
+        # else:
+            # self.controler.refreshAll3("Please enter initialization data first")
+    
+    def save_mean_batch(self,filename,ref=None):
         global preview
         if self.controler.initialised:
-            try:
-                options = QFileDialog.Options()
-                options |= QFileDialog.DontUseNativeDialog
-                fileName, _ = QFileDialog.getSaveFileName(self,"Covariance / Noise convolution matrix","noise.h5","HDF5 (*.h5)", options=options)
-                try:
-                    name=os.path.basename(fileName)
-                    path = os.path.dirname(fileName)
-                    if name:
-                        saved = self.controler.save_data(name, path, 5)
-                        if saved:
-                            if not self.controler.optim_succeed:
-                                preview = 1
-                            self.controler.refreshAll3(" Saving matrix - Done")
-                        else:
-                            print("Something went wrong")          
-                except:
-                    self.controler.error_message_output_filename()
-            except:
-                self.controler.error_message_output_filename()
-                return(0)
+            name = f"corrected_mean_{path_(filename).stem}.txt"
+            # # path = path_(filename).parent.joinpath(f"correct@tds_save_data")
+            # print(f"modesuper : {csts.modesuper}")
+            # path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            
+            if csts.modesuper:
+                path_init = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+                path = path_(filename).parent.joinpath(f"{path_(filename).stem}").joinpath(f"superresolution")
+                if not path_(path_init).is_dir():
+                    path_(path_init).mkdir()
+                    path_(path).mkdir()
+            
+            else:
+                path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+                if not path_(path).is_dir():
+                    path_(path).mkdir() 
+                # if not path_(path).is_dir():
+            # else:
+                # pass
+            
+            if name:
+                saved = self.controler.save_data(name, path, 0)
+                if saved:
+                    if not self.controler.optim_succeed:
+                        preview = 1
+                    self.controler.refreshAll3(" Saving mean - Done")
+                else:
+                    print("Something went wrong")          
+            # print(path.joinpath(path_(filename).name))
+            if sys.platform =="linux" or sys.platform=="darwin":
+                subprocess.run(f"cp {filename} {path.joinpath(path_(filename).name)}", shell=True)
+            elif sys.platform =="win32" or sys.platform=="cygwin":
+                subprocess.run(f"copy {path_(filename)} {path.joinpath(path_(filename).name)}", shell=True)
+            if ref != None:
+                if sys.platform=="linux" or sys.platform=="darwin":
+                    subprocess.run(f"cp {ref} {path.joinpath(path_(ref).name)}", shell=True)
+                elif sys.platform=="win32" or sys.platform=="cygwin":
+                    subprocess.run(f"copy {path_(ref)} {path.joinpath(path_(ref).name)}", shell=True)
+                    
         else:
             self.controler.refreshAll3("Please enter initialization data first")
     
-    def save_mean(self):
+    def save_std_time_batch(self,filename):
         global preview
         if self.controler.initialised:
-            try:
-                options = QFileDialog.Options()
-                options |= QFileDialog.DontUseNativeDialog
-                fileName, _ = QFileDialog.getSaveFileName(self,"Mean file","mean.txt","TXT (*.txt)", options=options)
-                try:
-                    name=os.path.basename(fileName)
-                    path = os.path.dirname(fileName)
-                    if name:
-                        saved = self.controler.save_data(name, path, 0)
-                        if saved:
-                            if not self.controler.optim_succeed:
-                                preview = 1
-                            self.controler.refreshAll3(" Saving mean - Done")
-                        else:
-                            print("Something went wrong")          
-                except:
-                    self.controler.error_message_output_filename()
-            except:
-                self.controler.error_message_output_filename()
-                return(0)
+            name = f"corrected_std_time_{path_(filename).stem}.txt"
+            # # path = path_(filename).parent.joinpath(f"correct@tds_save_data")
+            # path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            
+            
+            
+            if csts.modesuper:
+                path_init = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+                path = path_(filename).parent.joinpath(f"{path_(filename).stem}").joinpath(f"superresolution")
+                if not path_(path_init).is_dir():
+                    path_(path_init).mkdir()
+                    path_(path).mkdir()
+            
+            else:
+                path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+                if not path_(path).is_dir():
+                    path_(path).mkdir() 
+            
+            # path_init = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            # if csts.modesuper:
+                # path = path_(filename).parent.joinpath(f"{path_(filename).stem}").joinpath(f"superresolution")
+            # else:
+                # path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            # if not path_(path_init).is_dir():
+                # path_(path_init).mkdir()
+                # path_(path).mkdir()
+            # elif path_(path_init).is_dir():
+                # if not path_(path).is_dir():
+                    # path_(path).mkdir() 
+            # else:
+                # pass
+
+            if name:
+                saved = self.controler.save_data(name, path, 3)
+                if saved:
+                    if not self.controler.optim_succeed:
+                        preview = 1
+                    self.controler.refreshAll3(" Saving std in time domain - Done")
+                else:
+                    print("Something went wrong")          
+        else:
+            self.controler.refreshAll3("Please enter initialization data first")  
+            
+    def save_std_freq_batch(self,filename):
+        global preview
+        if self.controler.initialised:
+            name = f"corrected_std_freq_{path_(filename).stem}.txt"
+            # # path = path_(filename).parent.joinpath(f"correct@tds_save_data")
+            # path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            
+            if csts.modesuper:
+                path_init = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+                path = path_(filename).parent.joinpath(f"{path_(filename).stem}").joinpath(f"superresolution")
+                if not path_(path_init).is_dir():
+                    path_(path_init).mkdir()
+                    path_(path).mkdir()
+            
+            else:
+                path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+                if not path_(path).is_dir():
+                    path_(path).mkdir() 
+            
+            # path_init = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            # if csts.modesuper:
+                # path = path_(filename).parent.joinpath(f"{path_(filename).stem}").joinpath(f"superresolution")
+            # else:
+                # path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            # if not path_(path_init).is_dir():
+                # path_(path_init).mkdir()
+                # path_(path).mkdir()
+            # elif path_(path_init).is_dir():
+                # if not path_(path).is_dir():
+                    # path_(path).mkdir() 
+            # else:
+                # pass
+            
+            if name:
+                saved = self.controler.save_data(name, path, 4)
+                if saved:
+                    if not self.controler.optim_succeed:
+                        preview = 1
+                    self.controler.refreshAll3(" Saving std in frequency domain - Done")
+                else:
+                    print("Something went wrong")          
         else:
             self.controler.refreshAll3("Please enter initialization data first")
-            
-    def save_param(self):
+
+    def save_param_batch(self,filename):
         global preview
         if self.controler.optim_succeed:
-            try:
-                options = QFileDialog.Options()
-                options |= QFileDialog.DontUseNativeDialog
-                fileName, _ = QFileDialog.getSaveFileName(self,"Optimization parameters filename","correction_parameters.txt","TXT (*.txt)", options=options)
-                try:
-                    name=os.path.basename(fileName)
-                    path = os.path.dirname(fileName)
-                    if name:
-                        saved = self.controler.save_data(name, path, 1)
-                        if saved:
-                            if not self.controler.optim_succeed:
-                                preview = 1
-                            self.controler.refreshAll3(" Saving parameters - Done")
-                        else:
-                            print("Something went wrong")          
-                except:
-                    self.controler.error_message_output_filename()
-            except:
-                self.controler.error_message_output_filename()
-                return(0)
+            name = f"correction_params_{path_(filename).stem}.txt"
+            # # path = path_(filename).parent.joinpath(f"correct@tds_save_data")
+            # path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            
+            if csts.modesuper:
+                path_init = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+                path = path_(filename).parent.joinpath(f"{path_(filename).stem}").joinpath(f"superresolution")
+                if not path_(path_init).is_dir():
+                    path_(path_init).mkdir()
+                    path_(path).mkdir()
+            
+            else:
+                path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+                if not path_(path).is_dir():
+                    path_(path).mkdir() 
+            
+            
+            # path_init = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            # if csts.modesuper:
+                # path = path_(filename).parent.joinpath(f"{path_(filename).stem}").joinpath(f"superresolution")
+            # else:
+                # path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            # if not path_(path_init).is_dir():
+                # path_(path_init).mkdir()
+                # path_(path).mkdir()
+            # elif path_(path_init).is_dir():
+                # if not path_(path).is_dir():
+                    # path_(path).mkdir() 
+            # else:
+                # pass
+            
+            if name:
+                saved = self.controler.save_data(name, path, 1)
+                if saved:
+                    if not self.controler.optim_succeed:
+                        preview = 1
+                    self.controler.refreshAll3(" Saving parameters - Done")
+                else:
+                    print("Something went wrong")          
         else:
             self.controler.refreshAll3("Please launch an optimization first")
-        
-    def save_traces(self):
+    
+    def save_traces_batch(self,filename):
         global preview
         if self.controler.initialised:
-            try:
-                options = QFileDialog.Options()
-                options |= QFileDialog.DontUseNativeDialog
-                fileName, _ = QFileDialog.getSaveFileName(self,"Each traces filename","traces.h5","HDF5 (*.h5)", options=options)
-                try:
-                    name=os.path.basename(fileName)
-                    path = os.path.dirname(fileName)
-                    if name:
-                        saved = self.controler.save_data(name, path, 2)
-                        if saved:
-                            if not self.controler.optim_succeed:
-                                preview = 1
-                            self.controler.refreshAll3(" Saving each traces - Done")
-                        else:
-                            print("Something went wrong")          
-                except:
-                    self.controler.error_message_output_filename()
-            except:
-                self.controler.error_message_output_filename()
-                return(0)
+            name = f"corrected_time_traces_{path_(filename).stem}.txt"
+            # path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            
+            if csts.modesuper:
+                path_init = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+                path = path_(filename).parent.joinpath(f"{path_(filename).stem}").joinpath(f"superresolution")
+                if not path_(path_init).is_dir():
+                    path_(path_init).mkdir()
+                    path_(path).mkdir()
+            
+            else:
+                path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+                if not path_(path).is_dir():
+                    path_(path).mkdir() 
+            
+            # path_init = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            # if csts.modesuper:
+                # path = path_(filename).parent.joinpath(f"{path_(filename).stem}").joinpath(f"superresolution")
+            # else:
+                # path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            # if not path_(path_init).is_dir():
+                # path_(path_init).mkdir()
+                # path_(path).mkdir()
+            # elif path_(path_init).is_dir():
+                # if not path_(path).is_dir():
+                    # path_(path).mkdir() 
+            # else:
+                # pass
+            
+            if name:
+                saved = self.controler.save_data(name, path, 2)
+                if saved:
+                    if not self.controler.optim_succeed:
+                        preview = 1
+                    self.controler.refreshAll3(" Saving each traces - Done")
+                else:
+                    print("Something went wrong")          
         else:
             self.controler.refreshAll3("Please enter initialization data first")
+    
+    def save_cov_batch(self,filename):
+        global preview
+        if self.controler.initialised:
+            name = f"noise_matrix_{path_(filename).stem}.txt"
+            # path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            
+            if csts.modesuper:
+                path_init = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+                path = path_(filename).parent.joinpath(f"{path_(filename).stem}").joinpath(f"superresolution")
+                if not path_(path_init).is_dir():
+                    path_(path_init).mkdir()
+                    path_(path).mkdir()
+            
+            else:
+                path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+                if not path_(path).is_dir():
+                    path_(path).mkdir() 
+            
+            # path_init = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            # if csts.modesuper:
+                # path = path_(filename).parent.joinpath(f"{path_(filename).stem}").joinpath(f"superresolution")
+            # else:
+                # path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            # if not path_(path_init).is_dir():
+                # path_(path_init).mkdir()
+                # path_(path).mkdir()
+            # elif path_(path_init).is_dir():
+                # if not path_(path).is_dir():
+                    # path_(path).mkdir() 
+            # else:
+                # pass
+            
+            if name:
+                saved = self.controler.save_data(name, path, 5)
+                if saved:
+                    if not self.controler.optim_succeed:
+                        preview = 1
+                    self.controler.refreshAll3(" Saving matrix - Done")
+                else:
+                    print("Something went wrong")          
+        else:
+            self.controler.refreshAll3("Please enter initialization data first")
+    
+    # def save_mean(self):
+        # global preview
+        # if self.controler.initialised:
+            # try:
+                # # options = QFileDialog.Options()
+                # # options |= QFileDialog.DontUseNativeDialog
+                # # fileName, _ = QFileDialog.getSaveFileName(self,"Mean file","mean.txt","TXT (*.txt)", options=options)
+                # fileName, _ = QFileDialog.getSaveFileName(self,"Mean file","mean.txt","TXT (*.txt)")
+                # try:
+                    # name=os.path.basename(fileName)
+                    # path = os.path.dirname(fileName)
+                    # if name:
+                        # saved = self.controler.save_data(name, path, 0)
+                        # if saved:
+                            # if not self.controler.optim_succeed:
+                                # preview = 1
+                            # self.controler.refreshAll3(" Saving mean - Done")
+                        # else:
+                            # print("Something went wrong")          
+                # except:
+                    # self.controler.error_message_output_filename()
+            # except:
+                # self.controler.error_message_output_filename()
+                # return(0)
+        # else:
+            # self.controler.refreshAll3("Please enter initialization data first")
+            
+    # def save_param(self):
+        # global preview
+        # if self.controler.optim_succeed:
+            # try:
+                # # options = QFileDialog.Options()
+                # # options |= QFileDialog.DontUseNativeDialog
+                # # fileName, _ = QFileDialog.getSaveFileName(self,"Optimization parameters filename","correction_parameters.txt","TXT (*.txt)", options=options)
+                # fileName, _ = QFileDialog.getSaveFileName(self,"Optimization parameters filename","correction_parameters.txt","TXT (*.txt)")
+                # try:
+                    # name=os.path.basename(fileName)
+                    # path = os.path.dirname(fileName)
+                    # if name:
+                        # saved = self.controler.save_data(name, path, 1)
+                        # if saved:
+                            # if not self.controler.optim_succeed:
+                                # preview = 1
+                            # self.controler.refreshAll3(" Saving parameters - Done")
+                        # else:
+                            # print("Something went wrong")          
+                # except:
+                    # self.controler.error_message_output_filename()
+            # except:
+                # self.controler.error_message_output_filename()
+                # return(0)
+        # else:
+            # self.controler.refreshAll3("Please launch an optimization first")
+        
+    # def save_traces(self):
+        # global preview
+        # if self.controler.initialised:
+            # try:
+                # # options = QFileDialog.Options()
+                # # options |= QFileDialog.DontUseNativeDialog
+                # # fileName, _ = QFileDialog.getSaveFileName(self,"Each traces filename","traces.h5","HDF5 (*.h5)", options=options)
+                # fileName, _ = QFileDialog.getSaveFileName(self,"Each traces filename","traces.h5","HDF5 (*.h5)")
+                # try:
+                    # name=os.path.basename(fileName)
+                    # path = os.path.dirname(fileName)
+                    # if name:
+                        # saved = self.controler.save_data(name, path, 2)
+                        # if saved:
+                            # if not self.controler.optim_succeed:
+                                # preview = 1
+                            # self.controler.refreshAll3(" Saving each traces - Done")
+                        # else:
+                            # print("Something went wrong")          
+                # except:
+                    # self.controler.error_message_output_filename()
+            # except:
+                # self.controler.error_message_output_filename()
+                # return(0)
+        # else:
+            # self.controler.refreshAll3("Please enter initialization data first")
             
         
-    def save_std_time(self):
-        global preview
-        if self.controler.initialised:
-            try:
-                options = QFileDialog.Options()
-                options |= QFileDialog.DontUseNativeDialog
-                fileName, _ = QFileDialog.getSaveFileName(self,"Std time domain file","std_time.txt","TXT (*.txt)", options=options)
-                try:
-                    name=os.path.basename(fileName)
-                    path = os.path.dirname(fileName)
-                    if name:
-                        saved = self.controler.save_data(name, path, 3)
-                        if saved:
-                            if not self.controler.optim_succeed:
-                                preview = 1
-                            self.controler.refreshAll3(" Saving std in time domain - Done")
-                        else:
-                            print("Something went wrong")          
-                except:
-                    self.controler.error_message_output_filename()
-            except:
-                self.controler.error_message_output_filename()
-                return(0)
-        else:
-            self.controler.refreshAll3("Please enter initialization data first")
+    # def save_std_time(self):
+        # global preview
+        # if self.controler.initialised:
+            # try:
+                # # options = QFileDialog.Options()
+                # # options |= QFileDialog.DontUseNativeDialog
+                # # fileName, _ = QFileDialog.getSaveFileName(self,"Std time domain file","std_time.txt","TXT (*.txt)", options=options)
+                # fileName, _ = QFileDialog.getSaveFileName(self,"Std time domain file","std_time.txt","TXT (*.txt)")
+                # try:
+                    # name=os.path.basename(fileName)
+                    # path = os.path.dirname(fileName)
+                    # if name:
+                        # saved = self.controler.save_data(name, path, 3)
+                        # if saved:
+                            # if not self.controler.optim_succeed:
+                                # preview = 1
+                            # self.controler.refreshAll3(" Saving std in time domain - Done")
+                        # else:
+                            # print("Something went wrong")          
+                # except:
+                    # self.controler.error_message_output_filename()
+            # except:
+                # self.controler.error_message_output_filename()
+                # return(0)
+        # else:
+            # self.controler.refreshAll3("Please enter initialization data first")
 
             
 
-    def save_std_freq(self):
-        global preview
-        if self.controler.initialised:
-            try:
-                options = QFileDialog.Options()
-                options |= QFileDialog.DontUseNativeDialog
-                fileName, _ = QFileDialog.getSaveFileName(self,"Std frequency domain file","std_freq.txt","TXT (*.txt)", options=options)
-                try:
-                    name=os.path.basename(fileName)
-                    path = os.path.dirname(fileName)
-                    if name:
-                        saved = self.controler.save_data(name, path, 4)
-                        if saved:
-                            if not self.controler.optim_succeed:
-                                preview = 1
-                            self.controler.refreshAll3(" Saving std in frequency domain - Done")
-                        else:
-                            print("Something went wrong")          
-                except:
-                    self.controler.error_message_output_filename()
-            except:
-                self.controler.error_message_output_filename()
-                return(0)
-        else:
-            self.controler.refreshAll3("Please enter initialization data first")
+    # def save_std_freq(self):
+        # global preview
+        # if self.controler.initialised:
+            # try:
+                # # options = QFileDialog.Options()
+                # # options |= QFileDialog.DontUseNativeDialog
+                # # fileName, _ = QFileDialog.getSaveFileName(self,"Std frequency domain file","std_freq.txt","TXT (*.txt)", options=options)
+                # fileName, _ = QFileDialog.getSaveFileName(self,"Std frequency domain file","std_freq.txt","TXT (*.txt)")
+                # try:
+                    # name=os.path.basename(fileName)
+                    # path = os.path.dirname(fileName)
+                    # if name:
+                        # saved = self.controler.save_data(name, path, 4)
+                        # if saved:
+                            # if not self.controler.optim_succeed:
+                                # preview = 1
+                            # self.controler.refreshAll3(" Saving std in frequency domain - Done")
+                        # else:
+                            # print("Something went wrong")          
+                # except:
+                    # self.controler.error_message_output_filename()
+            # except:
+                # self.controler.error_message_output_filename()
+                # return(0)
+        # else:
+            # self.controler.refreshAll3("Please enter initialization data first")
             
             
     def refresh():
@@ -1186,6 +1980,9 @@ class Saving_parameters(QGroupBox):
 class Graphs_optimisation(QGroupBox):
     def __init__(self, parent, controler):
         super().__init__(parent)
+        #TOVERIFY:
+        self.parent = parent
+        # ---------------------------------------------------------------------------- #
         self.controler = controler
         self.controler.addClient3(self)
         self.setTitle("Graphs")
@@ -1224,12 +2021,22 @@ class Graphs_optimisation(QGroupBox):
         self.button_Cov_Pulse_E_field.clicked.connect (self.Covariance_Pulse)
         
         self.label_window = QLabel("Window")  
+        
+        # ============================ select file to plot =========================== #
+        self.plot_file_label = QLabel(f"choose file to plot") 
+        self.plot_file_label.setMaximumSize(170,25)
+        self.plot_file = QComboBox(self) 
+        self.plot_file.activated.connect(self.plot_batch)
 
         # Organisation layout
         self.vlayoutmain = QVBoxLayout()
         self.hlayout = QHBoxLayout()
         self.hlayout2 = QHBoxLayout()
         self.hlayout3=QHBoxLayout()
+        # ============================== add a combobox ============================== #
+        self.hlayout4=QHBoxLayout()
+        self.hlayout4.addWidget(self.plot_file_label)
+        self.hlayout4.addWidget(self.plot_file)
 
         self.hlayout.addWidget(self.button_Pulse_E_field)
         self.hlayout.addWidget(self.button_E_field_dB)
@@ -1257,6 +2064,9 @@ class Graphs_optimisation(QGroupBox):
         self.vlayoutmain.addWidget(self.canvas)
         self.vlayoutmain.addLayout(self.hlayout)
         self.vlayoutmain.addLayout(self.hlayout2)
+        # ========================== add combobox to layout ========================== #
+        self.vlayoutmain.addLayout(self.hlayout4)
+        # ---------------------------------------------------------------------------- #
         self.setLayout(self.vlayoutmain)
 
 
@@ -1486,49 +2296,110 @@ class Graphs_optimisation(QGroupBox):
 
 
 
+    # def E_field_dB_graph(self):
+        # global graph_option_2
+        # graph_option_2='E_field [dB]'
+        # self.controler.ploting_text3('Ploting E_field [dB]')
+
+    # def Pulse_E_field_graph(self):
+        # global graph_option_2
+        # graph_option_2='Pulse (E_field)'
+        # self.controler.ploting_text3('Ploting pulse E_field')
+    
+    # def Phase_graph(self):
+        # global graph_option_2
+        # graph_option_2='Phase'
+        # self.controler.ploting_text3('Ploting Phase')
+        
+    # def Correction_param_graph(self):
+        # global graph_option_2
+        # graph_option_2='Correction parameters'
+        # self.controler.ploting_text3('Ploting Correction parameters')
+        
+    # def Covariance_Pulse(self):
+        # global graph_option_2
+        # graph_option_2='Noise matrix'
+        # self.controler.ploting_text3('Ploting Covariance\n   Reminder - the matrix must be saved for its computation (Ledoit-Wolf shrinkage)')  
+        
+    # def Pulse_E_field_std_graph(self):
+        # global graph_option_2
+        # graph_option_2='Std Pulse (E_field)'
+        # self.controler.ploting_text3('Ploting Std pulse E_field')
+
+    # def E_field_std_dB_graph(self):
+        # global graph_option_2
+        # graph_option_2='Std E_field [dB]'
+        # self.controler.ploting_text3('Ploting Std E_field [dB]')
+    
     def E_field_dB_graph(self):
         global graph_option_2
         graph_option_2='E_field [dB]'
-        self.controler.ploting_text3('Ploting E_field [dB]')
-
+        # self.controler.ploting_text3('Ploting E_field [dB]')
+        self.parent.text_box.append(f'\nPlotting E_field [dB]')
+        self.plot_batch()
+        
     def Pulse_E_field_graph(self):
         global graph_option_2
         graph_option_2='Pulse (E_field)'
-        self.controler.ploting_text3('Ploting pulse E_field')
+        # self.controler.ploting_text3('Ploting pulse E_field')
+        self.parent.text_box.append(f'\nPlotting pulse E_field')
+        self.plot_batch()
     
     def Phase_graph(self):
         global graph_option_2
         graph_option_2='Phase'
-        self.controler.ploting_text3('Ploting Phase')
-        
+        # self.controler.ploting_text3('Ploting Phase')
+        self.parent.text_box.append(f'\nPlotting Phase')
+        self.plot_batch()
+    
     def Correction_param_graph(self):
         global graph_option_2
         graph_option_2='Correction parameters'
-        self.controler.ploting_text3('Ploting Correction parameters')
-        
+        # self.controler.ploting_text3('Ploting Correction parameters')
+        self.parent.text_box.append(f'\nPlotting Correction parameters')
+        self.plot_batch()
+    
     def Covariance_Pulse(self):
         global graph_option_2
         graph_option_2='Noise matrix'
-        self.controler.ploting_text3('Ploting Covariance\n   Reminder - the matrix must be saved for its computation (Ledoit-Wolf shrinkage)')  
-        
+        # self.controler.ploting_text3('Ploting Covariance\n   Reminder - the matrix must be saved for its computation (Ledoit-Wolf shrinkage)')
+        self.parent.text_box.append(f'\nPlotting Covariance\n   Reminder - the matrix must be saved for its computation (Ledoit-Wolf shrinkage)')  
+        self.plot_batch()
+    
     def Pulse_E_field_std_graph(self):
         global graph_option_2
         graph_option_2='Std Pulse (E_field)'
-        self.controler.ploting_text3('Ploting Std pulse E_field')
-
+        # self.controler.ploting_text3('Ploting Std pulse E_field')
+        self.parent.text_box.append(f'\nPlotting Std pulse E_field')
+        self.plot_batch()
+        
     def E_field_std_dB_graph(self):
         global graph_option_2
         graph_option_2='Std E_field [dB]'
-        self.controler.ploting_text3('Ploting Std E_field [dB]')
+        # self.controler.ploting_text3('Ploting Std E_field [dB]')
+        self.parent.text_box.append(f'\nPlotting Std E_field [dB]')
+        self.plot_batch()
 
+    # =========================== add itesm to combobox ========================== #
+    def add_items_to_combobox(self,items):
+        self.plot_file.addItems(items)
+    
+    # ========================= defing file choice signal ======================== #
+    def refresh_plot(self):
+        self.plot_batch()
+    
+    # =========== define a new plot function according to selected file ========== #
+    def plot_batch(self):
+        index = self.plot_file.currentIndex()
+        try:
+            self.draw_graph_init(csts.myinput[index], csts.myreferencedata[index], csts.ncm[index], csts.ncm_inverse[index], csts.reference_number[index], csts.mydatacorrection[index], csts.delay_correction[index], csts.dilatation_correction[index],csts.leftover_correction[index],csts.myglobalparameters[index],csts.fopt[index], csts.fopt_init[index], csts.mode[index], preview)
+        except Exception as e:
+            print(e)
+    # ---------------------------------------------------------------------------- #
+    
     def refresh(self):
         try:
-            self.draw_graph_init(self.controler.myinput, self.controler.myreferencedata, self.controler.ncm, self.controler.ncm_inverse, 
-                                 self.controler.reference_number, 
-                                 self.controler.mydatacorrection, self.controler.delay_correction, self.controler.dilatation_correction,
-                                 self.controler.leftover_correction,
-                                     self.controler.myglobalparameters,self.controler.fopt, self.controler.fopt_init,
-                                      self.controler.mode, preview)
+            self.draw_graph_init(self.controler.myinput, self.controler.myreferencedata, self.controler.ncm, self.controler.ncm_inverse, self.controler.reference_number, self.controler.mydatacorrection, self.controler.delay_correction, self.controler.dilatation_correction,self.controler.leftover_correction,self.controler.myglobalparameters,self.controler.fopt, self.controler.fopt_init, self.controler.mode, preview)
                 
         except Exception as e:
             pass
@@ -1559,7 +2430,8 @@ class MainWindow(QMainWindow):
             shutil.rmtree("temp")
         except:
             pass
-
+    
+    
 def main():
 
     sys._excepthook = sys.excepthook 
@@ -1570,13 +2442,14 @@ def main():
     sys.excepthook = exception_hook 
     
     app = QApplication(sys.argv)
-    controler = Controler()
+    controler = Controler()    
     win = MainWindow(controler)
     qApp.setApplicationName("Correct@TDS")
     #controler.init()
-    win.show()
+    # win.show()
+    win.showMaximized()
     sys.exit(app.exec_())
 
 if __name__ == '__main__':
     main()
-
+    

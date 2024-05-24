@@ -1,0 +1,707 @@
+                                     ======================
+                                        ALPSO 1.1 (SPM)
+                                     ======================
+
+Parameters:
+-------------------------------------------------------------------------------------------------
+Swarmsize           :     1000    MaxOuterIters     :     1000    Seed:       1681204931.20962238
+Cognitive Parameter :    2.000    MaxInnerIters     :        6    Scaling            :          1
+Social Parameter    :    1.000    MinInnerIters     :        6    Stopping Criteria  :          0
+Initial Weight      :    0.990    DynInnerIters     :        0    Number of Failures :         15
+Final Weight        :    0.550    StoppingIters     :        5    Number of Successes:          5
+
+Absolute Tolerance  : 1.00e-10    Number Initial Pos:        0    Neighbourhood Model:      gbest
+Relative Tolerance  : 1.00e-10    Initial Velocity  :        1    Neighbourhood Size :         10
+Inequality Tolerance: 1.00e-03    Maximum Velocity  :        2    Selfless           :          1
+Equality Tolerance  : 1.00e-05    Craziness Velocity: 1.00e-04    Fileout            :          1
+Global Distance     : 1.00e-01    Initial Penalty   :     1.00    File Name          :  ALPSO.out
+-------------------------------------------------------------------------------------------------
+
+
+================================================================================
+
+NUMBER OF ITERATIONS: 1
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 7000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.04353034623743968
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4997010021115382		P(1) = 0.461460065188462		P(2) = 0.5441510341230567	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 2
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 13000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03964999286915926
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998871152258278		P(1) = 0.4867208131140289		P(2) = 0.6006433861729994	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 3
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 19000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03944052348192151
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4999002159400432		P(1) = 0.5045448639209191		P(2) = 0.640770157890415	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 4
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 25000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943404001406561
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937601440683		P(1) = 0.5060117192061611		P(2) = 0.6241321339856006	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 5
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 31000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943330749310192
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998940680633608		P(1) = 0.5072968819594261		P(2) = 0.6200200400047956	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 6
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 37000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943330749310192
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998940680633608		P(1) = 0.5072968819594261		P(2) = 0.6200200400047956	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 7
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 43000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329746167346
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937868969965		P(1) = 0.5072408400792919		P(2) = 0.6228676490027653	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 8
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 49000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329793500253
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937626435763		P(1) = 0.5071849544867028		P(2) = 0.6218498075477804	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 9
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 55000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.039433298609051
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998938427114527		P(1) = 0.5072650605592095		P(2) = 0.6217255587632817	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 10
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 61000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329772816341
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937151648469		P(1) = 0.507237631664178		P(2) = 0.6222079718722818	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 11
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 67000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329761052102
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.499893731530576		P(1) = 0.5072395987688135		P(2) = 0.6218072595032957	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 12
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 73000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329743444035
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937462133467		P(1) = 0.5072072872055234		P(2) = 0.6218876887885644	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 13
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 79000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329762176949
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937167710966		P(1) = 0.5072111022409964		P(2) = 0.6218854269532764	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 14
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 85000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329738366678
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937613383317		P(1) = 0.5072355618631909		P(2) = 0.6217801676682732	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 15
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 91000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329728537621
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937885264811		P(1) = 0.5072272696608676		P(2) = 0.6216911565876604	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 16
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 97000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329726702281
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937782753437		P(1) = 0.507216156354407		P(2) = 0.6217145453028419	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 17
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 103000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329726702281
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937782753437		P(1) = 0.507216156354407		P(2) = 0.6217145453028419	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 18
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 109000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329752064766
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937230717566		P(1) = 0.5072162544129416		P(2) = 0.6216242590623596	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 19
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 115000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329738686405
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937968113164		P(1) = 0.5072350160211848		P(2) = 0.6217612384237714	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 20
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 121000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329763053865
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998938150278064		P(1) = 0.5072433434354818		P(2) = 0.6218573032819185	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 21
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 127000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329734633635
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937852301957		P(1) = 0.5072080318172701		P(2) = 0.6216002031609039	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 22
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 133000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329815877974
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937067613373		P(1) = 0.5072515948195557		P(2) = 0.6213873504268255	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 23
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 139000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329741989145
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998938035873584		P(1) = 0.5072354419475125		P(2) = 0.6215442502557645	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 24
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 145000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.0394332974238558
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937439800999		P(1) = 0.5072090462151096		P(2) = 0.6214365404262815	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 25
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 151000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329747644706
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937356283059		P(1) = 0.5072329268287594		P(2) = 0.6215300991188945	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 26
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 157000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329784620778
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998936952741119		P(1) = 0.5072254030469305		P(2) = 0.6216200206791049	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 27
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 163000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329763397793
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937233080833		P(1) = 0.5072368787248596		P(2) = 0.6215438766805453	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 28
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 169000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329826851785
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937281894651		P(1) = 0.5071812307766056		P(2) = 0.6214672382207219	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 29
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 175000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329763052086
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937551218905		P(1) = 0.5072466692754219		P(2) = 0.6214845858747053	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 30
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 181000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.039433297473059
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937317394345		P(1) = 0.507229803098913		P(2) = 0.6215055699432186	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 31
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 187000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329741010664
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998938156676598		P(1) = 0.5072284407689188		P(2) = 0.6214179945314836	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 32
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 193000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329770622164
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937146238605		P(1) = 0.5072358906114559		P(2) = 0.621410969695024	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 33
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 199000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329728127518
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937884089796		P(1) = 0.5072266228118278		P(2) = 0.6214199775026074	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 34
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 205000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329729726507
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937559695928		P(1) = 0.5072235764340798		P(2) = 0.6214726595338002	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 35
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 211000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329729726507
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937559695928		P(1) = 0.5072235764340798		P(2) = 0.6214726595338002	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 36
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 217000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329725954273
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937737230147		P(1) = 0.5072183565485926		P(2) = 0.6213662696722656	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 37
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 223000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329736425513
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937885452422		P(1) = 0.5072071257030807		P(2) = 0.6214186205105767	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 38
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 229000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329758839217
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.499893811871276		P(1) = 0.5072423321374439		P(2) = 0.6214308824815068	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 39
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 235000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329737314918
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937779309481		P(1) = 0.5072057859522047		P(2) = 0.62145193913333	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 40
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 241000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329746243495
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937360290554		P(1) = 0.5072319645048309		P(2) = 0.6215012231805598	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 41
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 247000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329802544239
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998936919452829		P(1) = 0.5072044093416561		P(2) = 0.6214853781000521	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 42
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 253000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329741218566
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998938037908385		P(1) = 0.5072072636197016		P(2) = 0.621574563329661	
+
+================================================================================
+
+================================================================================
+
+NUMBER OF ITERATIONS: 43
+
+NUMBER OF OBJECTIVE FUNCTION EVALUATIONS: 259000
+
+OBJECTIVE FUNCTION VALUE:
+	F = 0.03943329744499353
+
+LAGRANGIAN MULTIPLIERS VALUES:
+
+BEST POSITION:
+	P(0) = 0.4998937747370581		P(1) = 0.507240376382913		P(2) = 0.621550989454143	
+
+================================================================================

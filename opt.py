@@ -15,8 +15,6 @@ import scipy.optimize as optimize  ## Library for optimization
 import fitf as TDS
 from scipy import signal
 
-
-
 # =============================================================================
 j = 1j
 
@@ -40,18 +38,18 @@ except:
 # Extension modules
 # =============================================================================
 
-try:
-    from pyOpt import Optimization   ## Library for optimization
-    from pyOpt import ALPSO  ## Library for optimization
-except:
-    if myrank==0:
-        print("Error importing pyopt")
+# try:
+#     from pyOpt import Optimization   ## Library for optimization
+#     from pyOpt import ALPSO  ## Library for optimization
+# except:
+#     if myrank==0:
+#         print("Error importing pyopt")
     
-try:
-    from pyOpt import SLSQP  ## Library for optimization
-except:
-    if myrank==0:
-        print("Error importing pyopt SLSQP")
+# try:
+#     from pyOpt import SLSQP  ## Library for optimization
+# except:
+#     if myrank==0:
+#         print("Error importing pyopt SLSQP")
 
 
 # =============================================================================
@@ -94,7 +92,7 @@ class Callback_annealing(object):
         with open('algo_dualannealing_out.txt', 'a+') as filehandle:
             filehandle.write('\n iteration number %d ; error %s ; parameters %s \r\n' % (self.nit, monerreur(par), par))
 
-           
+
 
 
 
@@ -186,86 +184,81 @@ def errorchoice_pyOpt():
 
 # =============================================================================
 
-def optimALPSO(opt_prob, swarmsize, maxiter,algo,out_opt_full_info_filename): #ok
-    if algo == 2:
-        alpso_none = ALPSO(pll_type='SPM')
-    else:
-        alpso_none = ALPSO()
-    #alpso_none.setOption('fileout',1)
-    #alpso_none.setOption('filename',out_opt_full_info_filename)
-    alpso_none.setOption('SwarmSize',swarmsize)
-    alpso_none.setOption('maxInnerIter',6)
-    alpso_none.setOption('etol',1e-5)
-    alpso_none.setOption('rtol',1e-10)
-    alpso_none.setOption('atol',1e-10)
-    alpso_none.setOption('vcrazy',1e-4)
-    alpso_none.setOption('dt',1e0)
-    alpso_none.setOption('maxOuterIter',maxiter)
-    alpso_none.setOption('stopCriteria',0)#Stopping Criteria Flag (0 - maxIters, 1 - convergence)
-    alpso_none.setOption('printInnerIters',1)               
-    alpso_none.setOption('printOuterIters',1)
-    alpso_none.setOption('HoodSize',int(swarmsize/100))
-    return(alpso_none(opt_prob))
+# def optimALPSO(opt_prob, swarmsize, maxiter,algo,out_opt_full_info_filename): #ok
+#     if algo == 2:
+#         alpso_none = ALPSO(pll_type='SPM')
+#     else:
+#         alpso_none = ALPSO()
+#     #alpso_none.setOption('fileout',1)
+#     #alpso_none.setOption('filename',out_opt_full_info_filename)
+#     alpso_none.setOption('SwarmSize',swarmsize)
+#     alpso_none.setOption('maxInnerIter',6)
+#     alpso_none.setOption('etol',1e-5)
+#     alpso_none.setOption('rtol',1e-10)
+#     alpso_none.setOption('atol',1e-10)
+#     alpso_none.setOption('vcrazy',1e-4)
+#     alpso_none.setOption('dt',1e0)
+#     alpso_none.setOption('maxOuterIter',maxiter)
+#     alpso_none.setOption('stopCriteria',0)#Stopping Criteria Flag (0 - maxIters, 1 - convergence)
+#     alpso_none.setOption('printInnerIters',1)               
+#     alpso_none.setOption('printOuterIters',1)
+#     alpso_none.setOption('HoodSize',int(swarmsize/100))
+#     return(alpso_none(opt_prob))
     
-def optimSLSQP(opt_prob,maxiter):#ok
-    slsqp_none = SLSQP()
-    #slsqp_none.setOption('IPRINT',1)
-    #slsqp_none.setOption('IFILE',out_opt_full_info_filename)
-    slsqp_none.setOption('MAXIT',maxiter)
-    slsqp_none.setOption('IOUT',15) 
-    slsqp_none.setOption('ACC',1e-20)
-    return(slsqp_none(opt_prob))
+# def optimSLSQP(opt_prob,maxiter):#ok
+#     slsqp_none = SLSQP()
+#     #slsqp_none.setOption('IPRINT',1)
+#     #slsqp_none.setOption('IFILE',out_opt_full_info_filename)
+#     slsqp_none.setOption('MAXIT',maxiter)
+#     slsqp_none.setOption('IOUT',15) 
+#     slsqp_none.setOption('ACC',1e-20)
+#     return(slsqp_none(opt_prob))
 
-def optimSLSQPpar(opt_prob,maxiter): # arecopierdansdoublet #ok
+# def optimSLSQPpar(opt_prob,maxiter): # arecopierdansdoublet #ok
           
-    slsqp_none = SLSQP() # arecopierdansdoublet
+#     slsqp_none = SLSQP() # arecopierdansdoublet
 
-    #slsqp_none.setOption('IPRINT',1)
-    #slsqp_none.setOption('IFILE',out_opt_full_info_filename)
-    slsqp_none.setOption('MAXIT',maxiter)
-    slsqp_none.setOption('IOUT',12) 
-    slsqp_none.setOption('ACC',1e-24)
-    return(slsqp_none(opt_prob,sens_mode='pgc')) 
+#     #slsqp_none.setOption('IPRINT',1)
+#     #slsqp_none.setOption('IFILE',out_opt_full_info_filename)
+#     slsqp_none.setOption('MAXIT',maxiter)
+#     slsqp_none.setOption('IOUT',12) 
+#     slsqp_none.setOption('ACC',1e-24)
+#     return(slsqp_none(opt_prob,sens_mode='pgc')) 
 
             
 
 # =============================================================================
 # We load the model choices
 # =============================================================================
-f=open(os.path.join("temp",'temp_file_1_ini.bin'),'rb') #ok
-[path_data, path_data_ref, reference_number, fit_dilatation, dilatation_limit, dilatationmax_guess, 
- freqWindow, timeWindow, fit_delay, delaymax_guess, delay_limit, mode, nsample,
- fit_periodic_sampling, periodic_sampling_freq_limit, fit_leftover_noise, leftcoef_guess, leftcoef_limit]=pickle.load(f)
-f.close()
+with open(os.path.join("temp",'temp_file_1_ini.bin'),'rb') as f : #ok
+    [path_data, path_data_ref, reference_number, fit_dilatation, dilatation_limit, dilatationmax_guess, 
+     freqWindow, timeWindow, fit_delay, delaymax_guess, delay_limit, mode, nsample,
+     fit_periodic_sampling, periodic_sampling_freq_limit, fit_leftover_noise, leftcoef_guess, leftcoef_limit]=pickle.load(f)
 
 data = TDS.datalist()
-f=open(os.path.join("temp",'temp_file_6.bin'),'rb')
-data = pickle.load(f)
-myreferencedata=pickle.load(f) # champs
-f.close()
+with open(os.path.join("temp",'temp_file_6.bin'),'rb') as f:
+    data = pickle.load(f)
+    myreferencedata=pickle.load(f) # champs
 
 myglobalparameters = TDS.globalparameters()
-f=open(os.path.join("temp",'temp_file_7.bin'),'rb')
-myglobalparameters = pickle.load(f)
-apply_window = pickle.load(f)
-nsamplenotreal=len(myglobalparameters.t)
-f.close()
+with open(os.path.join("temp",'temp_file_7.bin'),'rb') as f:
+    myglobalparameters = pickle.load(f)
+    apply_window = pickle.load(f)
+    nsamplenotreal=len(myglobalparameters.t)
 
 if apply_window == 1:
     windows = signal.tukey(nsamplenotreal, alpha = 0.05)
 
 
 out_dir="temp"
-
-f=open(os.path.join("temp",'temp_file_5.bin'),'rb')
-[algo,swarmsize,maxiter, maxiter_ps]=pickle.load(f)
-f.close()
+with open(os.path.join("temp",'temp_file_5.bin'),'rb') as f:
+    [algo,swarmsize,maxiter, maxiter_ps]=pickle.load(f)
 
 
 
 # Load fields data
 out_opt_filename = "optim_result"
-out_opt_full_info_filename=os.path.join(out_dir,'{0}_full_info.out'.format(out_opt_filename.split('.')[0]))
+out_opt_full_info_filename = f"{out_dir}/{out_opt_filename.split('.')[0]}_full_info.out"
 
 datacorrection = TDS.datalist()
 
@@ -429,28 +422,28 @@ if fit_delay or fit_leftover_noise or fit_dilatation:
 
         
         
-        ## Optimization dans le cas PyOpt
-        if algo in [1,2,3,4]:
-            opt_prob = Optimization('Dielectric modeling based on TDS pulse fitting',objfunc)
-            icount = 0
-            for nom,varvalue in myVariablesDictionary.items():
-                #if varvalue>=0:
-                if trace == reference_number:
-                    opt_prob.addVar(nom,'c',lower = 0,upper = 1,
-                            value = ref_x0[icount] #normalisation
-                            )
-                else:
-                    opt_prob.addVar(nom,'c',lower = 0,upper = 1,
-                            value = (varvalue-minDict.get(nom))/(maxDict.get(nom)-minDict.get(nom)) #normalisation
-                            )
-                icount+=1
-                #else:
-                #    opt_prob.addVar(nom,'c',lower = 0,upper = 1,
-                #                value = -(varvalue-minDict.get(nom))/(maxDict.get(nom)-minDict.get(nom)) #normalisation
-                 #               )    
-            opt_prob.addObj('f')
-            #opt_prob.addCon('g1','i') #possibility to add constraints
-            #opt_prob.addCon('g2','i')
+        # ## Optimization dans le cas PyOpt
+        # if algo in [1,2,3,4]:
+        #     opt_prob = Optimization('Dielectric modeling based on TDS pulse fitting',objfunc)
+        #     icount = 0
+        #     for nom,varvalue in myVariablesDictionary.items():
+        #         #if varvalue>=0:
+        #         if trace == reference_number:
+        #             opt_prob.addVar(nom,'c',lower = 0,upper = 1,
+        #                     value = ref_x0[icount] #normalisation
+        #                     )
+        #         else:
+        #             opt_prob.addVar(nom,'c',lower = 0,upper = 1,
+        #                     value = (varvalue-minDict.get(nom))/(maxDict.get(nom)-minDict.get(nom)) #normalisation
+        #                     )
+        #         icount+=1
+        #         #else:
+        #         #    opt_prob.addVar(nom,'c',lower = 0,upper = 1,
+        #         #                value = -(varvalue-minDict.get(nom))/(maxDict.get(nom)-minDict.get(nom)) #normalisation
+        #          #               )    
+        #     opt_prob.addObj('f')
+        #     #opt_prob.addCon('g1','i') #possibility to add constraints
+        #     #opt_prob.addCon('g2','i')
         
         
         # =============================================================================
@@ -504,45 +497,45 @@ if fit_delay or fit_leftover_noise or fit_dilatation:
         # =============================================================================
         
         
-        if  (algo==1)|(algo == 2):
-            start = time.process_time()
-            [fopt, xopt, inform] = optimALPSO(opt_prob, swarmsize, maxiter,algo,out_opt_full_info_filename)
-            elapsed_time = time.process_time()-start
-            print(inform,"\nTime taken by the optimization:",elapsed_time)
+        # if  (algo==1)|(algo == 2):
+        #     start = time.process_time()
+        #     [fopt, xopt, inform] = optimALPSO(opt_prob, swarmsize, maxiter,algo,out_opt_full_info_filename)
+        #     elapsed_time = time.process_time()-start
+        #     print(inform,"\nTime taken by the optimization:",elapsed_time)
             
-        if algo ==3:
-                try:
-                    start = time.process_time()
-                    [fopt, xopt, inform] = optimSLSQP(opt_prob,maxiter)
-                    elapsed_time = time.process_time()-start
-                    print(inform,"\nTime taken by the optimization:",elapsed_time)
-                except Exception as e:
-                    print(e)
+        # if algo ==3:
+        #         try:
+        #             start = time.process_time()
+        #             [fopt, xopt, inform] = optimSLSQP(opt_prob,maxiter)
+        #             elapsed_time = time.process_time()-start
+        #             print(inform,"\nTime taken by the optimization:",elapsed_time)
+        #         except Exception as e:
+        #             print(e)
         
-        if algo ==4:
-                try:
-                    start = time.process_time()
-                    [fopt, xopt, inform] = optimSLSQPpar(opt_prob,maxiter)
-                    elapsed_time = time.process_time()-start
-                    print(inform,"\nTime taken by the optimization:",elapsed_time)
-                except Exception as e:
-                    print(e)
+        # if algo ==4:
+        #         try:
+        #             start = time.process_time()
+        #             [fopt, xopt, inform] = optimSLSQPpar(opt_prob,maxiter)
+        #             elapsed_time = time.process_time()-start
+        #             print(inform,"\nTime taken by the optimization:",elapsed_time)
+        #         except Exception as e:
+        #             print(e)
           
-        if fit_leftover_noise and not fit_dilatation: 
-            # si on corrige la dilatation, vaut mieux repartir de 0 sinon divergence
-            if fit_delay:
-                x0[1] = xopt[1] #coef a on evite de commencer l'init à 0 car parfois probleme de convergence
-            else:
-                x0[0] = xopt[0]  # coef a  
+        # if fit_leftover_noise and not fit_dilatation: 
+        #     # si on corrige la dilatation, vaut mieux repartir de 0 sinon divergence
+        #     if fit_delay:
+        #         x0[1] = xopt[1] #coef a on evite de commencer l'init à 0 car parfois probleme de convergence
+        #     else:
+        #         x0[0] = xopt[0]  # coef a  
         # =============================================================================
         
         if myrank == 0:
             xopt = xopt*(maxval-minval)+minval  #denormalize
-            print('The best error was: \t{}'.format(fopt))
+            print(f'The best error was: \t{fopt}')
             if(fit_leftover_noise):
-                print('the best parameters were: \t{}\n'.format(xopt[:-1]))
+                print(f'the best parameters were: \t{xopt[:-1]}\n')
             else:
-                print('the best parameters were: \t{}\n'.format(xopt))
+                print(f'the best parameters were: \t{xopt}\n')
             # =========================================================================
                     
             myfitteddata=myfitdata(myinputdata, xopt)
@@ -554,14 +547,12 @@ if fit_delay or fit_leftover_noise or fit_dilatation:
     
             result_optimization=[xopt,fopt]
             if(trace == 0):   # write first time
-                f=open(os.path.join("temp",'temp_file_3.bin'),'wb')
-                pickle.dump(result_optimization,f,pickle.HIGHEST_PROTOCOL)
-                f.close()
+                with open(os.path.join("temp",'temp_file_3.bin'),'wb') as f:
+                    pickle.dump(result_optimization,f,pickle.HIGHEST_PROTOCOL)
             else:  #append after first time
-                f=open(os.path.join("temp",'temp_file_3.bin'),'ab')
-                pickle.dump(result_optimization,f,pickle.HIGHEST_PROTOCOL)
-                f.close()
-                   
+                with open(os.path.join("temp",'temp_file_3.bin'),'ab') as f:
+                    pickle.dump(result_optimization,f,pickle.HIGHEST_PROTOCOL)
+    #TOADD: progressbar   
     ################################### After the optimization loop #############
     
     
@@ -572,10 +563,9 @@ if fit_delay or fit_leftover_noise or fit_dilatation:
         if apply_window == 1:
             datacorrection.freq_std_with_window = np.std(TDS.torch_rfft(datacorrection.pulse*windows, axis = 1),axis = 0)
         #SAVE the result in binary for other modules
-        f=open(os.path.join("temp",'temp_file_2.bin'),'wb')
-        pickle.dump(datacorrection,f,pickle.HIGHEST_PROTOCOL)
-        pickle.dump(fopt_init,f,pickle.HIGHEST_PROTOCOL)
-        f.close()
+        with open(os.path.join("temp",'temp_file_2.bin'),'wb') as f:
+            pickle.dump(datacorrection,f,pickle.HIGHEST_PROTOCOL)
+            pickle.dump(fopt_init,f,pickle.HIGHEST_PROTOCOL)
         
     
             
@@ -586,7 +576,9 @@ if fit_delay or fit_leftover_noise or fit_dilatation:
 
 
 if fit_periodic_sampling:
+    # print('##############################')
     print("Periodic sampling optimization")
+    # print('##############################')
 
     if fit_delay or fit_leftover_noise or fit_dilatation:
         mymean = np.mean(datacorrection.pulse, axis = 0)   
@@ -636,27 +628,28 @@ if fit_periodic_sampling:
     result_optimization = [xopt_ps, fopt_ps]
     
     if fit_delay or fit_leftover_noise or fit_dilatation:
-    	f=open(os.path.join("temp",'temp_file_3.bin'),'ab')
+        with open(os.path.join("temp",'temp_file_3.bin'),'ab') as f:
+            pickle.dump(result_optimization,f,pickle.HIGHEST_PROTOCOL)
     else:
-    	f=open(os.path.join("temp",'temp_file_3.bin'),'wb')
-    pickle.dump(result_optimization,f,pickle.HIGHEST_PROTOCOL)
-    f.close()
+        with open(os.path.join("temp",'temp_file_3.bin'),'wb') as f:
+            pickle.dump(result_optimization,f,pickle.HIGHEST_PROTOCOL)
     
     ct = xopt_ps[0]*np.cos(xopt_ps[1]*myglobalparameters.t + xopt_ps[2])
     
     if fit_delay or fit_leftover_noise or fit_dilatation:
         for i in range(numberOfTrace):
-            print("correction of trace {}".format(i))
+            # print("correction of trace {}".format(i))
+            print(f"correction of trace {i}")
             datacorrection.pulse[i]= datacorrection.pulse[i] - np.gradient(datacorrection.pulse[i], dt)*ct
     else:
         for i in range(numberOfTrace):
-            print("correction of trace {}".format(i))
+            print(f"correction of trace {i}")
             temp = data.pulse[i] - np.gradient(data.pulse[i], dt)*ct
             datacorrection.add_trace(temp)
 
     
-    print('The best error was: \t{}'.format(fopt_ps))
-    print('the best parameters were: \t{}\n'.format(xopt_ps))
+    print(f'The best error was: \t{fopt_ps}')
+    print(f'the best parameters were: \t{xopt_ps}\n')
 
     datacorrection.moyenne = np.mean(datacorrection.pulse, axis = 0)
     datacorrection.time_std = np.std(datacorrection.pulse, axis = 0)
@@ -664,10 +657,9 @@ if fit_periodic_sampling:
     if apply_window == 1:
         datacorrection.freq_std_with_window = np.std(TDS.torch_rfft(datacorrection.pulse*windows, axis = 1),axis = 0)
                 
-    f=open(os.path.join("temp",'temp_file_2.bin'),'wb')
-    pickle.dump(datacorrection,f,pickle.HIGHEST_PROTOCOL)
-    pickle.dump(fopt_init,f,pickle.HIGHEST_PROTOCOL)
-    f.close()
+    with open(os.path.join("temp",'temp_file_2.bin'),'wb') as f:
+        pickle.dump(datacorrection,f,pickle.HIGHEST_PROTOCOL)
+        pickle.dump(fopt_init,f,pickle.HIGHEST_PROTOCOL)
 
 ###################################################
 
