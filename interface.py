@@ -8,6 +8,7 @@
 
 import os
 import sys
+import subprocess
 import numpy as np
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
@@ -26,6 +27,8 @@ import time
 import fitf as TDS
 from fitc import Controler
 from scipy import signal
+from pathlib import Path as path_
+import constants as csts
 plt.rcParams.update({'font.size': 13})
 
 
@@ -38,12 +41,7 @@ except:
     print('mpi4py is required for parallelization')
     myrank=0
 
-
-"""    def on_click(self):
-        textboxValue = self.textbox.text()
-        QMessageBox.question(self, 'Message - pythonspot.com', "You typed: " + textboxValue, QMessageBox.Ok, QMessageBox.Ok)
-        self.textbox.setText("")"""
-
+ROOT_DIR = path_(__file__).parent
 
 def deleteLayout(layout):
     if layout is not None:
@@ -88,7 +86,7 @@ class color:
 
 graph_option_2=None
 preview = 1
-apply_window = 1
+apply_window = 0
 
 
 class MyTableWidget(QWidget):
@@ -135,7 +133,6 @@ class InitParam_handler(QWidget):
         super().__init__(parent)
         self.parent = parent
         self.controler = controler
-        #self.setMaximumWidth(500)
 
     def refresh(self):
         init_instance = InitParamWidget(self.parent,self.controler)
@@ -161,6 +158,12 @@ class InitParamWidget(QWidget):
         self.dialog.ui = Ui_Dialog()
         self.dialog.ui.setupUi(self.dialog, controler)
         
+        self.dialog_match = QDialog()
+        self.dialog_match.ui = Ui_Dialog_match()
+        
+        # ================= change: add a ref loading bool to control ================ #
+        self.ref_loaded = False
+        # ---------------------------------------------------------------------------- #
         label_width=1500
         text_box_width=150
         text_box_height=22
@@ -180,7 +183,7 @@ class InitParamWidget(QWidget):
         self.button_ask_path_data.clicked.connect(self.get_path_data)
         
         
-        self.label_path_without_sample = QLabel('Select traces without sample (optional) \u00b2')
+        self.label_path_without_sample = QLabel('Select data without sample (optional) \u00b2')
         self.label_path_without_sample.setAlignment(Qt.AlignVCenter)
         self.label_path_without_sample.resize(200, 100)
         self.label_path_without_sample.resize(self.label_path_without_sample.sizeHint())
@@ -191,6 +194,18 @@ class InitParamWidget(QWidget):
         self.button_ask_path_without_sample.resize(200, 100)
         self.button_ask_path_without_sample.resize(self.button_ask_path_without_sample.sizeHint())
         self.button_ask_path_without_sample.clicked.connect(self.get_path_data_ref)
+        
+        self.label_match_sample_ref = QLabel('Match sample and reference files')
+        self.label_match_sample_ref.setAlignment(Qt.AlignVCenter)
+        self.label_match_sample_ref.resize(200, 100)
+        self.label_match_sample_ref.resize(self.label_match_sample_ref.sizeHint())
+        self.label_match_sample_ref.setMaximumHeight(text_box_height)
+        
+        self.button_match_sample_ref = QPushButton('match')
+        self.button_match_sample_ref.resize(200, 100)
+        self.button_match_sample_ref.resize(self.button_match_sample_ref.sizeHint())
+        self.button_match_sample_ref.setMaximumHeight(text_box_height)
+        self.button_match_sample_ref.clicked.connect(self.open_dialog_match)
         
         
         self.label_data_length = QLabel('Set part of data to analyze? (optional)')
@@ -205,32 +220,36 @@ class InitParamWidget(QWidget):
         self.button_ask_data_length.setMaximumHeight(text_box_height)
         self.button_ask_data_length.clicked.connect(self.open_dialog)
         
-        self.button_preview = QPushButton('Preview')
-        self.button_preview.resize(200, 100)
-        self.button_preview.resize(self.button_preview.sizeHint())
-        #self.button_preview.clicked.connect(self.preview) todo
 
         self.button_data = QPushButton('Submit data')
 
-        self.button_parameters = QPushButton('Submit correction parameters')
+        self.button_parameters = QPushButton('Submit parameters')
         self.button_parameters.setMaximumHeight(22)
-        self.button_parameters.clicked.connect(self.on_click_param)
+        #TODO
+        # self.button_parameters.clicked.connect(self.on_click_param)
         self.button_parameters.pressed.connect(self.pressed_loading)
+        self.button_parameters.setEnabled(False)
 
         # We create a button to extract the information from the text boxes
         self.button = QPushButton('Submit / Preview')
         self.button.pressed.connect(self.pressed_loading)
-        self.button.clicked.connect(self.on_click)
+        self.button.setEnabled(False)
+        #TODO
+        #TOVERIFY
+        # self.button.clicked.connect(self.on_click)
+        # self.button.clicked.connect(self.on_click_print)
         self.button.setMaximumHeight(text_box_height)
         
         # Filter or not filter
-        self.LFfilter_label = QLabel('Filter low frequencies?')
+        self.LFfilter_label = QLabel('Filter low frequencies?\t      ')
         self.LFfilter_choice = QComboBox()
         self.LFfilter_choice.addItems(['No','Yes'])
         self.LFfilter_choice.setMaximumWidth(text_box_width)
         self.LFfilter_choice.setMaximumHeight(text_box_height)
+        self.LFfilter_choice.setCurrentIndex(1)
         
-        self.HFfilter_label = QLabel('Filter high frequencies?')
+        
+        self.HFfilter_label = QLabel('Filter high frequencies?\t      ')
         self.HFfilter_choice = QComboBox()
         self.HFfilter_choice.addItems(['No','Yes'])
         self.HFfilter_choice.setMaximumWidth(text_box_width)
@@ -248,36 +267,19 @@ class InitParamWidget(QWidget):
         self.end_box.setMaximumWidth(text_box_width)
         self.end_box.setMaximumHeight(text_box_height)
         self.end_box.setText("6e12")
-        self.sharp_box.setMaximumWidth(text_box_width)
+        self.sharp_box.setMaximumWidth(text_box_width-85)
         self.sharp_box.setMaximumHeight(text_box_height)
         self.sharp_box.setText("2")
         
-        # remove end of reference pulse
-        self.label_zeros = QLabel('Set end of time trace to zero? \u2074')
-        self.zeros_choice = QComboBox()
-        self.zeros_choice.addItems(['No','Yes'])
-        self.zeros_choice.setMaximumWidth(text_box_width-7)
-        self.zeros_choice.setMaximumHeight(text_box_height)
-        
-        #Remove baseline "dark" noise
-        self.label_dark = QLabel('Remove dark noise ramp? \u00b3')
-        self.dark_choice = QComboBox()
-        self.dark_choice.addItems(['No','Yes']) #Use a function to add
-        self.dark_choice.setMaximumWidth(text_box_width-7)
-        self.dark_choice.setMaximumHeight(text_box_height)
-        self.dark_choice.currentIndexChanged.connect(self.superresolution)
-        
-        self.label_slope = QLabel('\tSlope')
-        self.slope_box = QLineEdit()
-        self.slope_box.setMaximumWidth(text_box_width-7)
-        self.slope_box.setMaximumHeight(text_box_height)
-        self.slope_box.setText("4e-6")
-        
-        self.label_intercept = QLabel('    Intercept')
-        self.intercept_box = QLineEdit()
-        self.intercept_box.setMaximumWidth(text_box_width-7)
-        self.intercept_box.setMaximumHeight(text_box_height)
-        self.intercept_box.setText("0.3e-3")
+        # Super resolution
+        self.label_super = QLabel("            Super resolution ")
+        self.options_super = QComboBox()
+        self.options_super.addItems(['No','Yes'])
+        self.options_super.setMinimumWidth(text_box_width-75)
+        self.options_super.setMaximumWidth(text_box_width)
+        self.options_super.setMaximumHeight(text_box_height)
+        self.options_super.setCurrentIndex(0)
+    
         
         # Delay
         self.label_delay = QLabel("Fit delay?")
@@ -287,6 +289,7 @@ class InitParamWidget(QWidget):
         self.options_delay.addItems(['No','Yes'])
         self.options_delay.setMaximumWidth(text_box_width-75)
         self.options_delay.setMaximumHeight(text_box_height)
+        self.options_delay.setCurrentIndex(1)
         self.delayvalue_label = QLabel("Delay absolute value")
         self.delay_limit_box = QLineEdit()
         self.delay_limit_box.setMaximumWidth(text_box_width-24)
@@ -301,6 +304,7 @@ class InitParamWidget(QWidget):
         self.options_leftover.addItems(['No','Yes'])
         self.options_leftover.setMaximumWidth(text_box_width-75)
         self.options_leftover.setMaximumHeight(text_box_height)
+        self.options_leftover.setCurrentIndex(1)
         self.leftovervaluea_label = QLabel("Absolute value of         a")
         self.leftovera_limit_box = QLineEdit()
         self.leftovera_limit_box.setMaximumWidth(text_box_width-24)
@@ -337,21 +341,21 @@ class InitParamWidget(QWidget):
         self.options_periodic_sampling.addItems(['No','Yes'])
         self.options_periodic_sampling.setMaximumWidth(text_box_width-75)
         self.options_periodic_sampling.setMaximumHeight(text_box_height)
+        self.options_periodic_sampling.setCurrentIndex(1)
         self.periodic_sampling_freq_label = QLabel("Frequency [THz]")
         self.periodic_sampling_freq_limit_box = QLineEdit()
+        self.periodic_sampling_freq_limit_box.setText("7.5")
         self.periodic_sampling_freq_limit_box.setMaximumWidth(text_box_width-24)
         self.periodic_sampling_freq_limit_box.setMaximumHeight(text_box_height)
         
-        # Super resolution
-        self.label_super = QLabel("\tSuper resolution ")
-        self.options_super = QComboBox()
-        self.options_super.addItems(['No','Yes'])
-        self.options_super.setMaximumWidth(text_box_width-24)
 
 
         # Organisation layout
         self.hlayout6=QHBoxLayout()
         self.hlayout7=QHBoxLayout()
+        #TOVERIFY:
+        self.hlayout99=QHBoxLayout()
+        
         self.hlayout8=QHBoxLayout()
         self.hlayout9=QHBoxLayout()
         self.hlayout10=QHBoxLayout()
@@ -376,11 +380,13 @@ class InitParamWidget(QWidget):
         self.hlayout7.addWidget(self.label_path_without_sample,20)
         self.hlayout7.addWidget(self.button_ask_path_without_sample,17)
         
+        self.hlayout99.addWidget(self.label_match_sample_ref,20)
+        self.hlayout99.addWidget(self.button_match_sample_ref,17)
+        
         self.hlayout11.addWidget(self.label_data_length,20)
         self.hlayout11.addWidget(self.button_ask_data_length,17)
         
         self.hlayout8.addWidget(self.button_data)
-        #self.hlayout8.addWidget(self.options_super,1)
         
         self.hlayout9.addWidget(self.label_delay,0)
         self.hlayout9.addWidget(self.options_delay,1)
@@ -421,36 +427,16 @@ class InitParamWidget(QWidget):
 
         self.hlayout19.addWidget(self.label_sharp,1)
         self.hlayout19.addWidget(self.sharp_box,0)
+        self.hlayout19.addWidget(self.label_super,1)
+        self.hlayout19.addWidget(self.options_super,0)
 
-
-        self.hlayout20.addWidget(self.label_zeros,0)
-        self.hlayout20.addWidget(self.zeros_choice,0)
-        
-        self.hlayout21.addWidget(self.label_dark,0)
-        self.hlayout21.addWidget(self.dark_choice,1)
-        self.hlayout21.addWidget(self.label_super,0)
-        self.hlayout21.addWidget(self.options_super,1)
-        self.label_super.hide()
-        self.options_super.hide()
-        
-        
-        #self.hlayout8.addWidget(self.label_super,0)
-        #self.hlayout8.addWidget(self.options_super,1)
-        
-        self.hlayout22.addWidget(self.label_slope,0)
-        self.hlayout22.addWidget(self.slope_box,0)
-        self.hlayout22.addWidget(self.label_intercept,0)
-        self.hlayout22.addWidget(self.intercept_box,0)
-        self.label_slope.hide()
-        self.slope_box.hide()
-        self.label_intercept.hide()
-        self.intercept_box.hide()
         
         sub_layoutv2 = QVBoxLayout()
         sub_layoutv3 = QVBoxLayout()
         
         sub_layoutv2.addLayout(self.hlayout6)
         sub_layoutv2.addLayout(self.hlayout7)
+        sub_layoutv2.addLayout(self.hlayout99)
         sub_layoutv2.addLayout(self.hlayout11)
         
         sub_layoutv3.addLayout(self.hlayout9)
@@ -505,45 +491,39 @@ class InitParamWidget(QWidget):
         main_layout.addWidget(self.graph_widget,1)
         self.setLayout(main_layout)
 
-    def superresolution(self):
-        if self.dark_choice.currentIndex() == 1:
-            self.label_super.show()
-            self.options_super.show()
-            self.label_slope.show()
-            self.slope_box.show()
-            self.label_intercept.show()
-            self.intercept_box.show()
-        else:
-            self.label_super.hide()
-            self.options_super.setCurrentIndex(0)
-            self.options_super.hide()
-            self.label_slope.hide()
-            self.slope_box.hide()
-            self.label_intercept.hide()
-            self.intercept_box.hide()
-
     def pressed_loading1(self):
         self.controler.loading_text()
         
     def open_dialog(self):
         self.dialog.exec_()
+    
+    def open_dialog_match(self):
+        self.dialog_match.ui.setupUi(self.dialog_match, self.controler)
+        # self.button_match_sample_ref.setEnabled(False)
+        self.dialog_match.exec_()
+    
+    # def on_click_print(self):
+        # print(self.LFfilter_choice.currentIndex())
+        # print(self.HFfilter_choice.currentIndex())
+        # print(self.start_box.text())
+        # print(self.end_box.text())
+        # print(self.sharp_box.text())
+        # print(self.options_super.currentIndex())
+        
 
-    def on_click(self):
+    def on_click(self,data_,ref_):
+        # ============================================================================ #
+        #                   change funtion to remove preview of graph                  #
+        # ============================================================================ #
         global graph_option_2, preview
         try:
             Lfiltering_index = self.LFfilter_choice.currentIndex()
             Hfiltering_index = self.HFfilter_choice.currentIndex()
-            #zeros_index = self.zeros_choice.currentIndex()
-            zeros_index = 0
-            dark_index = self.dark_choice.currentIndex()
             cutstart = float(self.start_box.text())
             cutend   = float(self.end_box.text())
             cutsharp = float(self.sharp_box.text())
-            modesuper = 0
-            if(dark_index):
-                modesuper = self.options_super.currentIndex()
-            slope = float(self.slope_box.text())
-            intercept = float(self.intercept_box.text())
+            modesuper = self.options_super.currentIndex()
+            # print(f" super = {modesuper}")
             
             trace_start = 0
             trace_end = -1
@@ -559,14 +539,21 @@ class InitParamWidget(QWidget):
                 self.button_ask_data_length.setText(str(trace_start)+"-"+str(trace_end))
 
             try:
-                self.controler.choices_ini(self.path_data, self.path_data_ref, trace_start, trace_end, time_start, time_end,
-                                               Lfiltering_index, Hfiltering_index, zeros_index, dark_index, cutstart, 
-                                               cutend, cutsharp, slope, intercept, modesuper, apply_window)
-                graph_option_2='Pulse (E_field)'
+                # self.controler.choices_ini(self.path_data, self.path_data_ref, trace_start, trace_end, time_start, time_end,
+                # ============================================================================ #
+                #            change: modify function to select sample and ref files            #
+                # ============================================================================ #
+                # self.controler.choices_ini(data_, self.path_data_ref, trace_start, trace_end, time_start, time_end,Lfiltering_index, Hfiltering_index, cutstart,cutend, cutsharp, modesuper, apply_window)
+                self.controler.choices_ini(data_, ref_, trace_start, trace_end, time_start, time_end,Lfiltering_index, Hfiltering_index, cutstart,cutend, cutsharp, modesuper, apply_window)
+                # ============================= change : comment ============================= #
+                # graph_option_2='Pulse (E_field)'
                 preview = 1
-                self.graph_widget.refresh()
-                self.controler.refreshAll3(" Data initialization done | "+str(self.controler.data.numberOfTrace)+ " time traces loaded between ["+ str(int(self.controler.data.time[0])) + " , " + str(int(self.controler.data.time[-1]))+ "] ps")
+                # ============================= change : comment ============================= #
+                # self.graph_widget.refresh()
+                # ================ change: add text to mention number of files =============== #
+                self.controler.refreshAll3(" Data initialization done | "+str(self.controler.data.numberOfTrace)+ " time traces loaded between ["+ str(int(self.controler.data.time[0])) + " , " + str(int(self.controler.data.time[-1]))+ "] ps" + "; for " + str(len(csts.files)) + " files")
             except Exception as e:
+                # ---------------------------------------------------------------------------- #
                 print(e)
                 self.controler.error_message_path3()
                 return(0)
@@ -575,6 +562,7 @@ class InitParamWidget(QWidget):
             self.controler.refreshAll3("Invalid parameters, please enter real values only")
         self.controler.initialised=1
         self.controler.optim_succeed = 0
+        print(f"submit files finished")
 
     def on_click_param(self):
         global preview, graph_option_2
@@ -626,6 +614,7 @@ class InitParamWidget(QWidget):
                                                fit_periodic_sampling, periodic_sampling_freq_limit,
                                               fit_leftover_noise ,leftover_guess, leftover_limit)
                 self.controler.refreshAll3(" Parameters initialization done")
+                print(f"submit parameters done")
                 self.controler.initialised_param = 1
                 self.controler.optim_succeed = 0
             except Exception as e:
@@ -633,43 +622,73 @@ class InitParamWidget(QWidget):
                 return(0)
         except:
             self.controler.refreshAll3("Invalid parameters, please enter real positive values only and valid frequency range")
-            
-        try:
-            preview = 1
-            self.graph_widget.refresh()
-        except:
-            print("unknown error")
+        # ======================= change: remove graph preview ======================= #
+        # try:
+            # preview = 1
+            # self.graph_widget.refresh()
+        # except:
+            # print("unknown error")
+        # ---------------------------------------------------------------------------- #
             
     def get_path_data(self):
-        options = QFileDialog.Options()
-        options |= QFileDialog.DontUseNativeDialog
-        fileName, _ = QFileDialog.getOpenFileName(self,"Data (hdf5 file)", options=options, filter="Hdf5 File(*.h5)")
+        # # options = QFileDialog.Options()
+        # # options |= QFileDialog.DontUseNativeDialog
+        # # fileName, _ = QFileDialog.getOpenFileName(self,"Data (hdf5 file)", options=options, filter="Hdf5 File(*.h5)")
+        # ============================================================================ #
+        #                     change function to get multiple files                    #
+        #    store the files in as a list in another python file called constants.py   #
+        # ============================================================================ #
+        # ===================== change : change to get filenames ===================== #
+        # fileName, _ = QFileDialog.getOpenFileName(self,"Data (hdf5 file)", filter="Hdf5 File(*.h5)")
+        fileNames, _ = QFileDialog.getOpenFileNames(parent=self,caption=f"Select multiple h5 files",directory=f"{csts.init_directory}", filter="Hdf5 File(*.h5)")
+        # ================== change: fill files list with filenames ================== #
+        csts.files = fileNames
+        # print(fileNames)
         try:
-            self.path_data=fileName
-            name=os.path.basename(fileName)
+            name = path_(fileNames[0]) #make sure files are loaded 
+            self.path_data=path_(fileNames[0]).parent # a verifier 
+            csts.init_directory = self.path_data # to make default directory
+            # name=os.path.basename(fileName)
             if name:
-                self.button_ask_path_data.setText(name)
+                # ======================== change: change butoon text ======================== #
+                self.button_ask_path_data.setText(f"loadded {len(csts.files)} files")
+                # self.button_ask_path_data.setText(name)
+                self.controler.refreshAll3(f"loaded files:\n{[path_(csts.files[i]).name for i in range(len(csts.files))]}")
+        # ---------------------------------------------------------------------------- #
             else:
                 self.button_ask_path_data.setText("browse")
             self.controler.initialised = 0
         except:
-            self.controler.error_message_path()
+            self.controler.error_message_path3()
 
     def get_path_data_ref(self):
-        options = QFileDialog.Options()
-        options |= QFileDialog.DontUseNativeDialog
-        fileName, _ = QFileDialog.getOpenFileName(self,"Reference Data (hdf5 file)", options=options,  filter="Hdf5 File(*.h5)")
+        # # options = QFileDialog.Options()
+        # # options |= QFileDialog.DontUseNativeDialog
+        # # fileName, _ = QFileDialog.getOpenFileName(self,"Reference Data (hdf5 file)", options=options,  filter="Hdf5 File(*.h5)")
+        # fileName, _ = QFileDialog.getOpenFileName(self,"Reference Data (hdf5 file)",  filter="Hdf5 File(*.h5)")
+        # ==================================== new =================================== #
+        fileNames, _ = QFileDialog.getOpenFileNames(parent=self,caption=f"Select multiple reference h5 files",directory=f"{csts.init_directory}", filter="Hdf5 File(*.h5)")
+        # ================ cahnge : fill refs list with ref filenames ================ #
+        csts.refs = fileNames
         try:
-            self.path_data_ref=fileName
-            name=os.path.basename(fileName)
-            if name:
-                self.button_ask_path_without_sample.setText(name)
+            names = [path_(fileNames[i]) for i in range(len(csts.refs))] # make sure files are loaded
+            self.path_data_ref = path_(fileNames[0]).parent
+            # self.path_data_ref=fileName
+            # name=os.path.basename(fileName)
+            # if name:
+            # ================================== change ================================== #
+            if names:
+                # self.button_ask_path_without_sample.setText(name)
+                self.button_ask_path_without_sample.setText(f"loaded {len(csts.refs)} refs")
+                self.controler.refreshAll3(f"loaded refs:\n{[path_(csts.refs[i]).name for i in range(len(csts.refs))]}")
+            # ---------------------------------------------------------------------------- #
             else:
                 self.button_ask_path_without_sample.setText("browse")
             self.controler.initialised = 0
+            self.ref_loaded = True
             
         except:
-            self.controler.error_message_path()
+            self.controler.error_message_path3()
 
     def pressed_loading(self):
         self.controler.loading_text3()
@@ -713,7 +732,6 @@ class Ui_Dialog(object):
         
         self.button_submit_length = QPushButton('Submit')
         self.button_submit_length.clicked.connect(self.action)
-        #self.button.clicked.connect(self.on_click)
         
         self.hlayout0=QHBoxLayout()
         self.hlayout1=QHBoxLayout()
@@ -769,6 +787,216 @@ class Ui_Dialog(object):
             self.controler.refreshAll3("Invalid values, please enter positive values and trace start number must be less than or equal to trace end")
             return(0)
 
+class Ui_Dialog_match(object):
+    def setupUi(self, Dialog, controler):
+        self.controler = controler
+        
+        # self.length_initialized = 0
+        # self.trace_start = 0
+        # self.trace_end = -1
+        # self.time_start = 0
+        # self.time_end = -1
+        
+        self.lists_ordered = 0
+        
+        # ======================= keep the same for the moment ======================= #
+        self.dialog = Dialog
+        self.dialog.resize(400, 126)
+        # ---------------------------------------------------------------------------- #
+        self.dialog.setWindowTitle("match samples to references")
+        
+        i = 0
+        i2 = 0
+        
+        self.label_files = QLabel(f"Files")
+        
+        self.labels_files_text = [f"file {i}" for i in range(len(csts.files))]
+        self.labels_files = [QLabel(f"file {label}") for label in self.labels_files_text ]
+        # print(self.labels_files)
+        
+        
+        self.comboboxes_files = [QComboBox() for i in range(len(csts.files))]
+        for combobox in self.comboboxes_files:
+            combobox.addItems([path_(csts.files[i]).name for i in range(len(csts.files))])
+            combobox.setCurrentIndex(i)
+            i+=1
+        
+        # print(self.comboboxes_files)
+        
+        self.label_refs = QLabel(f"Reference Files")
+        
+        self.labels_refs_text = [f"ref {i}" for i in range(len(csts.files))]
+        self.labels_refs = [QLabel(f"file {label}") for label in self.labels_refs_text ]
+        
+        self.comboboxes_refs = [QComboBox() for i in range(len(csts.files))]
+        for combobox in self.comboboxes_refs:
+            combobox.addItems([path_(csts.refs[i]).name for i in range(len(csts.refs))])
+            combobox.setCurrentIndex(i2)
+            i2+=1
+        
+        
+        self.button_match = QPushButton(f"Match")
+        self.button_match.resize(100, 50)
+        self.button_match.clicked.connect(self.action_match)
+        
+        
+        if not csts.files:
+            self.show_warning_messagebox()
+        
+        
+        try:
+            if self.comboboxes_refs[-1].currentText() == "" :
+                self.show_critical_messagebox()
+        except:
+            pass
+
+        self.button_match.setEnabled(False)
+        
+        for combobox in self.comboboxes_refs:
+            combobox.activated.connect(self.verify_last_combo)
+        
+        
+        self.vlayout = QVBoxLayout()
+        self.hlayout = QHBoxLayout()
+        self.hlayout_button  = QHBoxLayout()
+        
+        
+        for i in range(len(csts.files)):
+            hlayout = QHBoxLayout()
+            hlayout.addWidget(self.labels_files[i])
+            hlayout.addWidget(self.comboboxes_files[i])
+            hlayout.addWidget(self.labels_refs[i])
+            hlayout.addWidget(self.comboboxes_refs[i])
+            self.vlayout.addLayout(hlayout)
+            
+        # print(self.vlayout)
+            
+            # self.vlayout_files.addWidget(self.labels_files[i])
+            # self.vlayout_files.addWidget(self.comboboxes_files[i])
+            # self.vlayout_files.addWidget(self.labels_refs[i])
+            # self.vlayout_files.addWidget(self.comboboxes_refs[i])
+        
+        # for i in range(len(csts.files)):
+        
+        self.hlayout_button.addWidget(self.button_match)
+        
+        
+        
+        self.general_layout = QVBoxLayout(self.dialog)
+        self.general_layout.addLayout(self.vlayout)
+        self.general_layout.addLayout(self.hlayout_button)
+        
+        self.general_layout.deleteLater()
+        # self.general_layout.addChildLayout(self.)
+        
+        
+        # self.label_file = QLabel('Number of time traces (0,...,N-1)   ')
+        
+        
+        # self.label_data_length = QLabel('Number of time traces (0,...,N-1)   ')
+        
+        # self.label_data_length_start = QLabel('  start    ')
+        # self.length_start_limit_box = QLineEdit()
+        
+        # self.label_data_length_end = QLabel('    end      ')
+        # self.length_end_limit_box = QLineEdit()
+        
+        # self.label_time_length = QLabel('Length of time trace (optional)   ')
+        
+        # self.label_time_length_start = QLabel('start (ps)')
+        # self.time_start_limit_box = QLineEdit()
+        
+        # self.label_time_length_end = QLabel('end (ps)')
+        # self.time_end_limit_box = QLineEdit()
+        
+        # self.button_submit_length = QPushButton('Submit')
+        # self.button_submit_length.clicked.connect(self.action)
+        
+        # self.hlayout0=QHBoxLayout()
+        # self.hlayout1=QHBoxLayout()
+        # self.hlayout2=QHBoxLayout()
+        
+        # self.hlayout0.addWidget(self.label_data_length,1)
+        # self.hlayout0.addWidget(self.label_data_length_start,1)
+        # self.hlayout0.addWidget(self.length_start_limit_box,1)
+        # self.hlayout0.addWidget(self.label_data_length_end,1)
+        # self.hlayout0.addWidget(self.length_end_limit_box,0)
+        # self.hlayout1.addWidget(self.label_time_length,1)
+        # self.hlayout1.addWidget(self.label_time_length_start,1)
+        # self.hlayout1.addWidget(self.time_start_limit_box,0)
+        # self.hlayout1.addWidget(self.label_time_length_end,1)
+        # self.hlayout1.addWidget(self.time_end_limit_box,1)
+        # self.hlayout2.addWidget(self.button_submit_length)
+        
+        # self.sub_layoutv10 = QVBoxLayout(self.dialog)
+        # self.sub_layoutv10.addLayout(self.hlayout0)
+        # self.sub_layoutv10.addLayout(self.hlayout1)
+        # self.sub_layoutv10.addLayout(self.hlayout2)
+
+    def action_match(self):
+        self.lists_ordered = 0
+        # self.length_initialized = 0
+        # print(csts.files)
+        try:
+            if self.comboboxes_refs[-1].currentText() != "":
+                for i, combobox in enumerate(self.comboboxes_files):
+                    # print(combobox.currentText())
+                    # print(csts.files[i])
+                    csts.files[i] = path_(csts.files[i]).parent.joinpath(combobox.currentText())
+                # print(csts.files)
+                for i, combobox in enumerate(self.comboboxes_refs):
+                    # print(combobox.currentText())
+                    if i < len(csts.refs):
+                        csts.refs[i] = path_(csts.refs[i]).parent.joinpath(combobox.currentText())
+                    elif i >= len(csts.refs):
+                        csts.refs.append(path_(csts.refs[0]).parent.joinpath(combobox.currentText()))
+                print(f"refs={(csts.refs)}")
+
+            self.dialog.close()
+        except Exception as e:
+            print(e)
+            self.controler.refreshAll3("Error ")
+            return(0)
+    
+    def verify_last_combo(self):
+        if csts.refs and self.comboboxes_refs[-1].currentText()!="":
+            self.button_match.setEnabled(True)
+        else:
+            self.button_match.setEnabled(False)
+    
+    def show_critical_messagebox(self):
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Critical)
+        
+        # setting message for Message Box
+        msg.setText("All samples files must be matched to a reference file")
+        # setting Message box window title
+        msg.setWindowTitle("Missing Reference File")
+    
+        # declaring buttons on Message Box
+        # msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        msg.setStandardButtons(QMessageBox.Ok)
+    
+        # start the app
+        retval = msg.exec_()
+
+    def show_warning_messagebox(self):
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Warning)
+
+        # setting message for Message Box
+        msg.setText("There is nothing to match !")
+    
+        # setting Message box window title
+        msg.setWindowTitle("No data files were loaded")
+    
+        # declaring buttons on Message Box
+        # msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        msg.setStandardButtons(QMessageBox.Ok)
+    
+        # start the app
+        retval = msg.exec_()
+    
 class TextBoxWidget(QTextEdit):
     def __init__(self, parent, controler):
         super().__init__(parent)
@@ -776,13 +1004,13 @@ class TextBoxWidget(QTextEdit):
         self.controler.addClient(self)
         self.controler.addClient3(self)
         self.setReadOnly(True)
-        #self.append("Log")
+
         self.setMinimumWidth(560)
         
         references = ['\u00b9 Time should be in ps.\nDatasets in the hdf5 must be named ["timeaxis", "0", "1", ..., "N-1"]\nExample: if we have 1000 time traces, N-1 = 999',
                       '\u00b2 Use to take into account the reference traces in the covariance computation \n(only if the initial data are measures with a sample)\ndon\'t forget to apply the same filters/correction to the reference before',
-                      '\u00b3 Sharpness: 100 is almost a step function, 0.1 is really smooth. See graphs in optimization tab.'
-                      
+                      '\u00b3 Sharpness: 100 is almost a step function, 0.1 is really smooth. See graphs in optimization tab.',
+                      '\u2074 Plot the noise convolution matrix or the covariance matrix depending on the input \n The matrix must be saved for its computation (Ledoit-Wolf Shrinkage)'
                       ]
         
         references_2=["\u2075 Error options:",
@@ -792,9 +1020,6 @@ class TextBoxWidget(QTextEdit):
         for reference in references:
             self.append(reference)
             self.append('')
-            
-        #for i in references_2:
-        #    self.append(i)
             
     def refresh(self):
         message = self.controler.message
@@ -847,8 +1072,6 @@ class Optimization_choices(QGroupBox):
         action_widget_width=150
         corrective_width_factor=-12
         text_box_height = 22
-        
-        
         # Algorithm choice
         self.label_algo = QLabel("Algorithm - delay/amplitude/dilatation")
         self.label_algo.setMaximumHeight(text_box_height)
@@ -862,6 +1085,7 @@ class Optimization_choices(QGroupBox):
                                     'SLSQP (scipy)',
                                     'Dual annealing'])
         self.options_algo.setMaximumHeight(text_box_height)
+        self.options_algo.setCurrentIndex(6)
         self.options_algo.currentIndexChanged.connect(self.refresh_param)
         
         
@@ -873,14 +1097,6 @@ class Optimization_choices(QGroupBox):
         self.options_algo_ps.currentIndexChanged.connect(self.refresh_param)
         
         
-        # Error choice
-        self.label_error = QLabel("Error function weighting \u2075")
-        self.label_error.setMaximumHeight(text_box_height)
-        self.options_error = QComboBox()
-        self.options_error.addItems(['Constant'])
-        self.options_error.setMaximumHeight(text_box_height)
-        self.options_error.currentIndexChanged.connect(self.refresh_param)
-        
             # Number of iterations
         self.label_niter = QLabel("\tIterations")
         self.label_niter.setMaximumHeight(text_box_height)
@@ -888,6 +1104,7 @@ class Optimization_choices(QGroupBox):
         self.enter_niter.setMaximumWidth(action_widget_width +corrective_width_factor)
         self.enter_niter.setMaximumHeight(30)
         self.enter_niter.setMaximumHeight(text_box_height)
+        self.enter_niter.setText('1000')
     
             # Number of iterations ps
         self.label_niter_ps = QLabel("Iterations")
@@ -906,10 +1123,15 @@ class Optimization_choices(QGroupBox):
         self.enter_swarmsize.setMaximumHeight(30)
         self.enter_swarmsize.setMaximumHeight(text_box_height)
         
+        self.refresh_param()
         
             # Button to launch optimization
         self.begin_button = QPushButton("Begin Optimization")
-        self.begin_button.clicked.connect(self.begin_optimization)
+        #TOCHANGE
+        #TOVERIFY
+        # self.begin_button.clicked.connect(self.begin_optimization)
+        self.begin_button.clicked.connect(self.begin_optimizations)
+        # self.begin_button.clicked.connect(self.print_ui_params)
         self.begin_button.pressed.connect(self.pressed_loading)
         #self.begin_button.setMaximumWidth(50)
         self.begin_button.setMaximumHeight(text_box_height)
@@ -945,7 +1167,6 @@ class Optimization_choices(QGroupBox):
         sub_layout_h_2.addWidget(self.label_niter_ps,0)
         sub_layout_h_2.addWidget(self.enter_niter_ps,0)
         sub_layout_h_8.addWidget(self.begin_button)
-        #sub_layout_h_8.addWidget(self.options_error)
 
         # Vertical layout   
         main_layout.addLayout(sub_layout_h_7)
@@ -959,9 +1180,59 @@ class Optimization_choices(QGroupBox):
 
     def pressed_loading(self):
         self.controler.loading_text3()
+# ============================================================================ #
+#                              Begin optimization                              #
+# ============================================================================ #
+# ============================================================================ #
+#           define new begin_optimization func to loop for all files           #
+# ============================================================================ #
+    # def print_ui_params(self):
+        # # ========= you should use self.parent.parent to reach other widgets ========= #
+        # print(self.parent.parent.LFfilter_choice.currentIndex())
+        # print(self.parent.parent.HFfilter_choice.currentIndex())
+        # print(self.parent.parent.options_super.currentIndex())
         
-    def begin_optimization(self):
+# ======================= be careful with parent.parent ====================== #
+    def begin_optimizations(self):
+        # try:
+            
+        if self.parent.parent.ref_loaded and len(csts.refs) != len(csts.files):
+            raise ValueError
+        i=0
+        for file in csts.files:
+            print(file)
+            if len(csts.refs) != 0:
+                for ref in csts.refs:
+                    self.begin_optimization(file,ref)
+            else:
+                self.begin_optimization(file)
+            i+=1
+            self.controler.refreshAll3(f"file {i}/{len(csts.files)} finished optimization")
+            if not self.parent.parent.ref_loaded:
+                self.parent.parent.save_param.save_mean_batch(file)
+            elif  self.parent.parent.ref_loaded:
+                self.parent.parent.save_param.save_mean_batch(file,ref)
+                
+            self.parent.parent.save_param.save_std_time_batch(file)
+            self.parent.parent.save_param.save_std_freq_batch(file)
+        
+        # except Exception:
+            # print(f"you should match references to number of sample files")
+            # self.controler.refreshAll3(f"You should match references to number of sample files")
+
+
+    
+    def begin_optimization(self, file,ref_file=None):
         global preview
+        # self.print_ui_params()
+        # self.method = InitParamWidget(InitParamWidget.parent)
+        # InitParamWidget.on_click(InitParamWidget.parent,csts.files[0])
+        # InitParamWidget.on_click_param(self)
+        #TOVERIFY
+        # self.parent.parent.on_click(csts.files[0])
+        self.parent.parent.on_click(file,ref_file)
+        self.parent.parent.on_click_param()
+        
         t1 = time.time()
         global graph_option_2
         submitted = self.submit_algo_param()    #get values from optimisation widget
@@ -984,8 +1255,6 @@ class Optimization_choices(QGroupBox):
         print(time.time()-t1)
     
     def refresh_param(self):
-        #self.parent.parent.save_param.refresh()
-        #self.controler.errorIndex = self.options_error.currentIndex() # for graph
         self.algo_index = self.options_algo.currentIndex()
         if self.algo_index < 3:
             self.label_swarmsize.show()
@@ -993,8 +1262,7 @@ class Optimization_choices(QGroupBox):
         else :
             self.label_swarmsize.hide()
             self.enter_swarmsize.hide()
-            
-            
+        
     def submit_algo_param(self):
         choix_algo=self.algo_index
         swarmsize = 0
@@ -1037,7 +1305,6 @@ class Optimization_choices(QGroupBox):
             self.controler.algo_parameters(choix_algo,swarmsize,niter,niter_ps)
         except Exception as e:
             print(e)
-            print(e)
             self.controler.invalid_niter()
             return(0)
         return(1)
@@ -1054,14 +1321,10 @@ class Saving_parameters(QGroupBox):
         action_widget_width=150
         corrective_width_factor=-12
 
-        
-        # Widget to see output directory
-        #self.label_outputdir = QLabel('Output directory: ')
-        #self.label_outputdir.setMaximumWidth(label_width)
+
         self.button_save_mean = QPushButton('Mean (.txt)', self)
         self.button_save_mean.clicked.connect(self.save_mean)
-       # self.button_outputdir.setMaximumWidth(action_widget_width +
-                                        #   corrective_width_factor)
+
         self.button_save_mean.setMaximumHeight(text_box_height)    
         
         self.button_save_traces = QPushButton('Time traces (.h5)', self)
@@ -1072,7 +1335,7 @@ class Saving_parameters(QGroupBox):
         self.button_save_param.clicked.connect(self.save_param)
         self.button_save_param.setMaximumHeight(text_box_height)
         
-        self.button_save_cov = QPushButton('Noise matrix (.h5)', self)
+        self.button_save_cov = QPushButton('Noise matrix inverse (.h5)', self)
         self.button_save_cov.clicked.connect(self.save_cov)
         self.button_save_cov.setMaximumHeight(text_box_height)
         
@@ -1083,6 +1346,14 @@ class Saving_parameters(QGroupBox):
         self.button_save_std_freq = QPushButton('Std freq (.txt)', self)
         self.button_save_std_freq.clicked.connect(self.save_std_freq)
         self.button_save_std_freq.setMaximumHeight(text_box_height) 
+        
+        self.button_save_mean.setEnabled(False)
+        self.button_save_traces.setEnabled(False)
+        self.button_save_param.setEnabled(False)
+        self.button_save_cov.setEnabled(False)
+        self.button_save_std_time.setEnabled(False)
+        self.button_save_std_freq.setEnabled(False)
+        
         
         sub_layout_h1=QHBoxLayout()
         sub_layout_h2=QHBoxLayout()
@@ -1103,15 +1374,134 @@ class Saving_parameters(QGroupBox):
         self.setLayout(self.main_layout)
         
     def save_cov(self):
-        self.controler.refreshAll3(" Not yet implemented")
+        global preview
+        if self.controler.initialised:
+            try:
+                # options = QFileDialog.Options()
+                # options |= QFileDialog.DontUseNativeDialog
+                # fileName, _ = QFileDialog.getSaveFileName(self,"Covariance / Noise convolution matrix","noise.h5","HDF5 (*.h5)", options=options)
+                fileName, _ = QFileDialog.getSaveFileName(self,"Covariance / Noise convolution matrix","noise.h5","HDF5 (*.h5)")
+                try:
+                    name=os.path.basename(fileName)
+                    path = os.path.dirname(fileName)
+                    if name:
+                        saved = self.controler.save_data(name, path, 5)
+                        if saved:
+                            if not self.controler.optim_succeed:
+                                preview = 1
+                            self.controler.refreshAll3(" Saving matrix - Done")
+                        else:
+                            print("Something went wrong")          
+                except:
+                    self.controler.error_message_output_filename()
+            except:
+                self.controler.error_message_output_filename()
+                return(0)
+        else:
+            self.controler.refreshAll3("Please enter initialization data first")
+    
+    def save_mean_batch(self,filename,ref=None):
+        global preview
+        if self.controler.initialised:
+            name = f"corrected_mean_{path_(filename).stem}.txt"
+            # path = path_(filename).parent.joinpath(f"correct@tds_save_data")
+            path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            if not path_(path).is_dir():
+                path_(path).mkdir()
+            else:
+                pass
+            if name:
+                saved = self.controler.save_data(name, path, 0)
+                if saved:
+                    if not self.controler.optim_succeed:
+                        preview = 1
+                    self.controler.refreshAll3(" Saving mean - Done")
+                else:
+                    print("Something went wrong")          
+            # print(path.joinpath(path_(filename).name))
+            subprocess.run(f"cp {filename} {path.joinpath(path_(filename).name)}", shell=True)
+            if ref != None:
+                subprocess.run(f"cp {ref} {path.joinpath(path_(ref).name)}", shell=True)
+                
+        else:
+            self.controler.refreshAll3("Please enter initialization data first")
+    
+    def save_std_time_batch(self,filename):
+        global preview
+        if self.controler.initialised:
+            name = f"corrected_std_time_{path_(filename).stem}.txt"
+            # path = path_(filename).parent.joinpath(f"correct@tds_save_data")
+            path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            if not path_(path).is_dir():
+                path_(path).mkdir()
+            else:
+                pass
+            if name:
+                saved = self.controler.save_data(name, path, 3)
+                if saved:
+                    if not self.controler.optim_succeed:
+                        preview = 1
+                    self.controler.refreshAll3(" Saving std in time domain - Done")
+                else:
+                    print("Something went wrong")          
+        else:
+            self.controler.refreshAll3("Please enter initialization data first")  
+        # global preview
+        # if self.controler.initialised:            
+            # try:
+                # # options = QFileDialog.Options()
+                # # options |= QFileDialog.DontUseNativeDialog
+                # # fileName, _ = QFileDialog.getSaveFileName(self,"Std time domain file","std_time.txt","TXT (*.txt)", options=options)
+                # fileName, _ = QFileDialog.getSaveFileName(self,"Std time domain file","std_time.txt","TXT (*.txt)")
+                
+                
+                # try:
+                    # name=os.path.basename(fileName)
+                    # path = os.path.dirname(fileName)
+                    # if name:
+                        # saved = self.controler.save_data(name, path, 3)
+                        # if saved:
+                            # if not self.controler.optim_succeed:
+                                # preview = 1
+                            # self.controler.refreshAll3(" Saving std in time domain - Done")
+                        # else:
+                            # print("Something went wrong")          
+                # except:
+                    # self.controler.error_message_output_filename()
+            # except:
+                # self.controler.error_message_output_filename()
+                # return(0)
+        # else:
+            # self.controler.refreshAll3("Please enter initialization data first")
+    def save_std_freq_batch(self,filename):
+        global preview
+        if self.controler.initialised:
+            name = f"corrected_std_freq_{path_(filename).stem}.txt"
+            path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            # path = path_(filename).parent.joinpath(f"correct@tds_save_data")
+            if not path_(path).is_dir():
+                path_(path).mkdir()
+            else:
+                pass
+            if name:
+                saved = self.controler.save_data(name, path, 4)
+                if saved:
+                    if not self.controler.optim_succeed:
+                        preview = 1
+                    self.controler.refreshAll3(" Saving std in frequency domain - Done")
+                else:
+                    print("Something went wrong")          
+        else:
+            self.controler.refreshAll3("Please enter initialization data first")
     
     def save_mean(self):
         global preview
         if self.controler.initialised:
             try:
-                options = QFileDialog.Options()
-                options |= QFileDialog.DontUseNativeDialog
-                fileName, _ = QFileDialog.getSaveFileName(self,"Mean file","mean.txt","TXT (*.txt)", options=options)
+                # options = QFileDialog.Options()
+                # options |= QFileDialog.DontUseNativeDialog
+                # fileName, _ = QFileDialog.getSaveFileName(self,"Mean file","mean.txt","TXT (*.txt)", options=options)
+                fileName, _ = QFileDialog.getSaveFileName(self,"Mean file","mean.txt","TXT (*.txt)")
                 try:
                     name=os.path.basename(fileName)
                     path = os.path.dirname(fileName)
@@ -1135,9 +1525,10 @@ class Saving_parameters(QGroupBox):
         global preview
         if self.controler.optim_succeed:
             try:
-                options = QFileDialog.Options()
-                options |= QFileDialog.DontUseNativeDialog
-                fileName, _ = QFileDialog.getSaveFileName(self,"Optimization parameters filename","correction_parameters.txt","TXT (*.txt)", options=options)
+                # options = QFileDialog.Options()
+                # options |= QFileDialog.DontUseNativeDialog
+                # fileName, _ = QFileDialog.getSaveFileName(self,"Optimization parameters filename","correction_parameters.txt","TXT (*.txt)", options=options)
+                fileName, _ = QFileDialog.getSaveFileName(self,"Optimization parameters filename","correction_parameters.txt","TXT (*.txt)")
                 try:
                     name=os.path.basename(fileName)
                     path = os.path.dirname(fileName)
@@ -1161,9 +1552,10 @@ class Saving_parameters(QGroupBox):
         global preview
         if self.controler.initialised:
             try:
-                options = QFileDialog.Options()
-                options |= QFileDialog.DontUseNativeDialog
-                fileName, _ = QFileDialog.getSaveFileName(self,"Each traces filename","traces.h5","HDF5 (*.h5)", options=options)
+                # options = QFileDialog.Options()
+                # options |= QFileDialog.DontUseNativeDialog
+                # fileName, _ = QFileDialog.getSaveFileName(self,"Each traces filename","traces.h5","HDF5 (*.h5)", options=options)
+                fileName, _ = QFileDialog.getSaveFileName(self,"Each traces filename","traces.h5","HDF5 (*.h5)")
                 try:
                     name=os.path.basename(fileName)
                     path = os.path.dirname(fileName)
@@ -1188,9 +1580,10 @@ class Saving_parameters(QGroupBox):
         global preview
         if self.controler.initialised:
             try:
-                options = QFileDialog.Options()
-                options |= QFileDialog.DontUseNativeDialog
-                fileName, _ = QFileDialog.getSaveFileName(self,"Std time domain file","std_time.txt","TXT (*.txt)", options=options)
+                # options = QFileDialog.Options()
+                # options |= QFileDialog.DontUseNativeDialog
+                # fileName, _ = QFileDialog.getSaveFileName(self,"Std time domain file","std_time.txt","TXT (*.txt)", options=options)
+                fileName, _ = QFileDialog.getSaveFileName(self,"Std time domain file","std_time.txt","TXT (*.txt)")
                 try:
                     name=os.path.basename(fileName)
                     path = os.path.dirname(fileName)
@@ -1216,9 +1609,10 @@ class Saving_parameters(QGroupBox):
         global preview
         if self.controler.initialised:
             try:
-                options = QFileDialog.Options()
-                options |= QFileDialog.DontUseNativeDialog
-                fileName, _ = QFileDialog.getSaveFileName(self,"Std frequency domain file","std_freq.txt","TXT (*.txt)", options=options)
+                # options = QFileDialog.Options()
+                # options |= QFileDialog.DontUseNativeDialog
+                # fileName, _ = QFileDialog.getSaveFileName(self,"Std frequency domain file","std_freq.txt","TXT (*.txt)", options=options)
+                fileName, _ = QFileDialog.getSaveFileName(self,"Std frequency domain file","std_freq.txt","TXT (*.txt)")
                 try:
                     name=os.path.basename(fileName)
                     path = os.path.dirname(fileName)
@@ -1270,46 +1664,14 @@ class Graphs_optimisation(QGroupBox):
         self.toolbar = NavigationToolbar(self.canvas, self)
         self.canvas.draw() 
         
-        # Create buttons to chose what to plot
-        # E field
-        #self.button_E_field = QPushButton('E field', self)
-        #self.button_E_field.clicked.connect(self.E_field_graph)
-        # E field [dB]
+
         self.button_E_field_dB = QPushButton('\nE field  [dB]\n', self)
         self.button_E_field_dB.clicked.connect(self.E_field_dB_graph)
         # Pulse (E field)
         self.button_Pulse_E_field = QPushButton('\nPulse E field\n', self)
         self.button_Pulse_E_field.clicked.connect(self.Pulse_E_field_graph)
-        # Pulse (E field) [dB]
-        """self.button_Pulse_E_field_dB = QPushButton('Pulse E field [dB]', self)
-        self.button_Pulse_E_field_dB.clicked.connect(self.Pulse_E_field_dB_graph)
-        # E field residue
-        self.button_E_field_residue = QPushButton('E field residue', self)
-        self.button_E_field_residue.clicked.connect(self.E_field_residue_graph)
-        # E field residue [dB]
-        self.button_E_field_residue_dB = QPushButton('E field residue [dB]', self)
-        self.button_E_field_residue_dB.clicked.connect(self.E_field_residue_dB_graph)
-        # Pulse residue (E field)
-        self.button_Pulse_E_field_residue = QPushButton('E(t) residue', self)
-        self.button_Pulse_E_field_residue.clicked.connect(self.Pulse_E_field_residue_graph)
-        # Pulse residue (E field) [dB]
-        self.button_Pulse_E_field_residue_dB = QPushButton('E(t) residue [dB]', self)
-        self.button_Pulse_E_field_residue_dB.clicked.connect(self.Pulse_E_field_residue_dB_graph)
-                # delay
-        self.button_Delay = QPushButton('Delay', self)
-        self.button_Delay.clicked.connect(self.Delay_graph)
-                # coef a
-        self.button_CoefA = QPushButton('Coef a', self)
-        self.button_CoefA.clicked.connect(self.CoefA_graph)
-                # coef c
-        self.button_CoefC = QPushButton('Coef c', self)
-        self.button_CoefC.clicked.connect(self.CoefC_graph)
-        
-                # delay
-        #self.button_Delay_by_index = QPushButton('Delay by index', self)
-        #self.button_Delay_by_index.clicked.connect(self.Delay_by_index_graph)"""
-        
-                # Pulse (E field) std
+
+
         self.button_Pulse_E_field_std = QPushButton('\nStd Pulse E field\n', self)
         self.button_Pulse_E_field_std.clicked.connect(self.Pulse_E_field_std_graph)
         # Pulse (E field) [dB] std
@@ -1320,24 +1682,15 @@ class Graphs_optimisation(QGroupBox):
         self.button_Phase = QPushButton('\nPhase\n', self)
         self.button_Phase.clicked.connect(self.Phase_graph)
 
-        #self.button_Phase_std = QPushButton('Std Phase', self)
-        #self.button_Phase_std.clicked.connect(self.Phase_std_graph)
         
         #Parameters
         self.button_Correction_param = QPushButton('\nCorrection parameters\n', self)
         self.button_Correction_param.clicked.connect(self.Correction_param_graph)
         
-        #Parameters
-        #self.button_Correction_param2 = QPushButton('\nCorrection parameters2\n', self)
-        #self.button_Correction_param2.clicked.connect(self.Correction_param_graph2)
-
-        #Parameters
-        #self.button_Errors = QPushButton('\nErrors\n', self)
-        #self.button_Errors.clicked.connect(self.Errors)
         
         #Covariance
-        #self.button_Cov_Pulse_E_field= QPushButton('(@_@)\nCovariance matrix\n!!can take time!!', self)
-        #self.button_Cov_Pulse_E_field.clicked.connect (self.Covariance_Pulse)
+        self.button_Cov_Pulse_E_field= QPushButton('\nNoise matrix \u2074\n', self)
+        self.button_Cov_Pulse_E_field.clicked.connect (self.Covariance_Pulse)
         
         self.label_window = QLabel("Window")  
 
@@ -1346,17 +1699,16 @@ class Graphs_optimisation(QGroupBox):
         self.hlayout = QHBoxLayout()
         self.hlayout2 = QHBoxLayout()
         self.hlayout3=QHBoxLayout()
-        #self.hlayout.addWidget(self.button_E_field)
+
         self.hlayout.addWidget(self.button_Pulse_E_field)
         self.hlayout.addWidget(self.button_E_field_dB)
-        #self.hlayout.addWidget(self.button_Pulse_E_field_dB)
+
         self.hlayout.addWidget(self.button_Pulse_E_field_std)
         self.hlayout.addWidget(self.button_E_field_dB_std)
         self.hlayout.addWidget(self.button_Phase)
         self.hlayout.addWidget(self.button_Correction_param)
-        #self.hlayout.addWidget(self.button_Correction_param2)
-        #self.hlayout.addWidget(self.button_Errors)
-        #self.hlayout.addWidget(self.button_Cov_Pulse_E_field)
+        self.hlayout.addWidget(self.button_Cov_Pulse_E_field)
+        
         self.label_window.setMaximumHeight(30)
         self.toolbar.setMaximumHeight(30)
         self.hlayout3.addWidget(self.toolbar)
@@ -1367,16 +1719,6 @@ class Graphs_optimisation(QGroupBox):
         #window_group.setMaximumHeight(60)
 
 
-        #self.hlayout.addWidget(self.button_Delay)
-        #self.hlayout.addWidget(self.button_CoefA)
-        #self.hlayout2.addWidget(self.button_E_field_residue)
-        #self.hlayout2.addWidget(self.button_E_field_residue_dB)
-        #self.hlayout2.addWidget(self.button_Pulse_E_field_residue)
-        #self.hlayout2.addWidget(self.button_Pulse_E_field_residue_dB)
-        #self.hlayout2.addWidget(self.button_Phase_std)
-        #self.hlayout.addWidget(self.button_Delay_by_index)
-        #self.hlayout2.addWidget(self.button_CoefC)
-
         self.vlayoutmain.addLayout(self.hlayout3)
         #self.vlayoutmain.addWidget(self.toolbar,1)
         #self.vlayoutmain.addWidget(window_group,Qt.AlignRight)
@@ -1385,27 +1727,26 @@ class Graphs_optimisation(QGroupBox):
         self.vlayoutmain.addLayout(self.hlayout)
         self.vlayoutmain.addLayout(self.hlayout2)
         self.setLayout(self.vlayoutmain)
-        #self.drawgraph()
 
 
-    def draw_graph_init(self,myinput, myreferencedata, ref_number, mydatacorrection, delay_correction, dilatation_correction, leftover_correction,myinput_cov, mydatacorrection_cov,
+    def draw_graph_init(self,myinput, myreferencedata, ncm, ncm_inverse, ref_number, mydatacorrection, delay_correction, dilatation_correction, leftover_correction,
                         myglobalparameters, fopt, fopt_init, mode, preview):
         global graph_option_2
         self.figure.clf()
         
         nsample = len(myinput.pulse[-1])
         windows = np.ones(nsample)
+        n_traces = len(myinput.pulse)
 
-        if apply_window and mode == "basic":
+        if apply_window:
             windows = signal.tukey(nsample, alpha = 0.05)  #don't forget to modify it in fitc and opt files if it's modify here 
 
         if graph_option_2=='E_field [dB]':
             self.figure.clf()
             ax1 = self.figure.add_subplot(111)
-            if mode == "basic":
-                ax1.set_title('E_field ', fontsize=10)
-            else:
-                ax1.set_title('E_field', fontsize=10)
+            
+            ax1.set_title('E_field', fontsize=10)
+            
             color = 'tab:red'
             ax1.set_xlabel('Frequency [Hz]')
             ax1.set_ylabel('E_field [dB]',color=color)
@@ -1413,19 +1754,26 @@ class Graphs_optimisation(QGroupBox):
             if not preview:
                 ax1.plot(myglobalparameters.freq,20*np.log(abs(np.fft.rfft(myreferencedata.Pulseinit*windows)))/np.log(10), 'g-', label='reference spectre (log)')
                 ax1.plot(myglobalparameters.freq,20*np.log(abs(np.fft.rfft(mydatacorrection.moyenne*windows)))/np.log(10), 'r-', label='corrected mean spectre (log)')
-                #ax1.plot(myglobalparameters.freq,20*np.log(abs(np.std(np.fft.rfft(myinput.pulse, axis = 1), axis = 0)))/np.log(10), 'b--', label='std spectre (log)')
-                #ax1.plot(myglobalparameters.freq,20*np.log(abs(np.std(np.fft.rfft(mydatacorrection.pulse, axis = 1), axis = 0)))/np.log(10), 'r--', label='corrected std spectre (log)')
+
+            if apply_window == 0:
+                ax1.plot(myglobalparameters.freq,20*np.log(abs(myinput.freq_std/np.sqrt(n_traces)))/np.log(10), 'b--', label='Standard error (log)')
+            else:
+                ax1.plot(myglobalparameters.freq,20*np.log(abs(myinput.freq_std_with_window/np.sqrt(n_traces)))/np.log(10), 'b--', label='Standard error (log)')
+            if not preview:
+                if apply_window == 0:
+                    ax1.plot(myglobalparameters.freq,20*np.log(abs(mydatacorrection.freq_std/np.sqrt(n_traces)))/np.log(10), 'r--', label='corrected Standard error (log)')
+                else:
+                    ax1.plot(myglobalparameters.freq,20*np.log(abs(mydatacorrection.freq_std_with_window/np.sqrt(n_traces)))/np.log(10), 'r--', label='corrected Standard error (log)')
+        
             ax1.legend()
             ax1.grid()
 
-            
+
         elif graph_option_2=='Pulse (E_field)':
             self.figure.clf()
             ax1 = self.figure.add_subplot(111)
-            if mode == "basic":
-                ax1.set_title('Pulse (E_field) ', fontsize=10)
-            else:
-                ax1.set_title('Pulse (E_field)', fontsize=10)
+            ax1.set_title('Pulse (E_field)', fontsize=10)
+            
             color = 'tab:red'
             ax1.set_xlabel('Time [s]')
             ax1.set_ylabel('Amplitude',color=color)
@@ -1486,35 +1834,14 @@ class Graphs_optimisation(QGroupBox):
                 ax2.grid() 
                 ax3.grid()
                 ax4.grid()
-                
-        elif graph_option_2=='Errors':
-            self.figure.clf()
-            ax1 = self.figure.add_subplot(111)
-            
-            color = 'tab:red'
-            ax1.set_xlabel("Trace index")
-            ax1.set_ylabel('Error',color=color)
-            
-            if not preview:
-                if len(fopt_init)>1 and len(fopt)>1:
-                    ax1.plot(fopt_init, "b.-", label = "before correction (with initial guess)" )
-                    ax1.plot(ref_number, fopt_init[ref_number], "bv")
-                    ax1.annotate(" Reference", (ref_number,fopt_init[ref_number]))
-                    
-                    ax1.plot(fopt, "r.--", label = "after correction" )
-                    ax1.plot(ref_number, fopt[ref_number], "rv")
-                    ax1.annotate(" Reference", (ref_number,fopt[ref_number]))
-                    
-                ax1.grid()
             
                 
         elif graph_option_2=='Std Pulse (E_field)':
             self.figure.clf()
             ax1 = self.figure.add_subplot(111)
-            if mode == "basic":
-                ax1.set_title('Std Pulse (E_field) ', fontsize=10)
-            else:
-                ax1.set_title('Std Pulse (E_field)', fontsize=10)
+
+            ax1.set_title('Std Pulse (E_field) ', fontsize=10)
+            
             color = 'tab:red'
             ax1.set_xlabel('Time [s]')
             ax1.set_ylabel('Standard deviation Pulse (E_field)',color=color)
@@ -1527,10 +1854,7 @@ class Graphs_optimisation(QGroupBox):
         elif graph_option_2 == 'Std E_field [dB]':
             self.figure.clf()
             ax1 = self.figure.add_subplot(111)
-            if mode == "basic":
-                ax1.set_title('Standard deviation E_field [dB] ', fontsize=10)
-            else:
-                ax1.set_title('Standard deviation E_field [dB]', fontsize=10)
+            ax1.set_title('Standard deviation E_field [dB]', fontsize=10)
             color = 'tab:red'
             ax1.set_xlabel('Frequency [Hz]')
             ax1.set_ylabel('Std E_field [dB]',color=color)
@@ -1556,48 +1880,80 @@ class Graphs_optimisation(QGroupBox):
                 ax1.set_title('Phase', fontsize=10)
             color = 'tab:red'
             ax1.set_xlabel('Frequency [Hz]')
-            ax1.set_ylabel('Phase',color=color)
-            ax1.plot(myglobalparameters.freq,np.unwrap(np.angle(np.fft.rfft(myinput.moyenne*windows)))/myglobalparameters.freq, 'b-', label='mean phase')
+            ax1.set_ylabel('Phase (radians)',color=color)
+            ax1.plot(myglobalparameters.freq,np.unwrap(np.angle(np.fft.rfft(myinput.moyenne*windows))), 'b-', label='mean phase')
             if not preview:
-                ax1.plot(myglobalparameters.freq,np.unwrap(np.angle(np.fft.rfft(myreferencedata.Pulseinit*windows)))/myglobalparameters.freq, 'g-', label='reference phase')
-                ax1.plot(myglobalparameters.freq,np.unwrap(np.angle(np.fft.rfft(mydatacorrection.moyenne*windows)))/myglobalparameters.freq, 'r-', label='corrected mean phase')
+                ax1.plot(myglobalparameters.freq,np.unwrap(np.angle(np.fft.rfft(myreferencedata.Pulseinit*windows))), 'g-', label='reference phase')
+                ax1.plot(myglobalparameters.freq,np.unwrap(np.angle(np.fft.rfft(mydatacorrection.moyenne*windows))), 'r-', label='corrected mean phase')
             ax1.legend()
             ax1.grid()
         
-        elif graph_option_2 == "Covariance Pulse E field":
+        elif graph_option_2 == "Noise matrix":
             self.figure.clf()
             ax1 = self.figure.add_subplot(121)
             ax2 = self.figure.add_subplot(122)
             
-            ax1.set_title('Covariance matrix (log) - before correction', fontsize=10)
-            ax2.set_title('Covariance matrix (log) - after correction', fontsize=10)
-            
-            color = 'tab:red'
-            ax1.set_xlabel('Time [s]')
-            ax1.set_ylabel('Time [s]',color=color)
-            
-            ax2.set_xlabel('Time [s]')
-            ax2.set_ylabel('Time [s]',color=color)
-            temp = 10*np.log(abs(myinput_cov)**2)/np.log(10)
-            #mini = np.partition(temp.flatten(), 1000)[1000]
-            maxi = np.max(temp)
-            mini = np.min(temp)
-            im = ax1.imshow(temp, vmin=mini, vmax=maxi, cmap = sns.cm.rocket)
-            plt.colorbar(im, ax = ax1)            
-            if not preview:
-                temp = 10*np.log(abs(mydatacorrection_cov)**2)/np.log(10)
-                im = ax2.imshow(temp, vmin=mini, vmax=maxi, cmap = sns.cm.rocket)
-                plt.colorbar(im, ax = ax2)
+            if ncm is not None:
+                ax1.set_title('Noise convolution matrix', fontsize=10)
+                
+                color = 'tab:red'
+                ax1.set_xlabel('Time [s]')
+                ax1.set_ylabel('Time [s]',color=color)
+                border = max(abs(np.min(ncm)), abs(np.max(ncm)))
+                im = ax1.imshow(ncm, vmin=-border, vmax = border, cmap = "seismic",interpolation= "nearest")
+                plt.colorbar(im, ax = ax1)    
+                
+                ax2.set_title('Noise convolution matrix inverse', fontsize=10)
+                
+                color = 'tab:red'
+                ax2.set_xlabel('Time [s]')
+                ax2.set_ylabel('Time [s]',color=color)
+                border = max(abs(np.min(ncm_inverse)), abs(np.max(ncm_inverse)))
+                im = ax2.imshow(ncm_inverse, vmin=-border, vmax=border, cmap = "seismic",interpolation= "nearest")
+                plt.colorbar(im, ax = ax2)  
+                
+            elif mydatacorrection.covariance is not None:
+                ax1.set_title('Covariance matrix', fontsize=10)
+                
+                color = 'tab:red'
+                ax1.set_xlabel('Time [s]')
+                ax1.set_ylabel('Time [s]',color=color)
+                border = max(abs(np.min(mydatacorrection.covariance)), abs(np.max(mydatacorrection.covariance)))
+                im = ax1.imshow(mydatacorrection.covariance, vmin=-border, vmax = border, cmap = "seismic",interpolation= "nearest")
+                plt.colorbar(im, ax = ax1) 
+                
+                ax2.set_title('Covariance matrix inverse', fontsize=10)
+                
+                color = 'tab:red'
+                ax2.set_xlabel('Time [s]')
+                ax2.set_ylabel('Time [s]',color=color)
+                border = max(abs(np.min(mydatacorrection.covariance_inverse)), abs(np.max(mydatacorrection.covariance_inverse)))
+                im = ax2.imshow(mydatacorrection.covariance_inverse, vmin=-border, vmax = border, cmap = "seismic",interpolation= "nearest")
+                plt.colorbar(im, ax = ax2) 
+                    
+            elif myinput.covariance is not None:
+                ax1.set_title('Covariance matrix', fontsize=10)
+                
+                color = 'tab:red'
+                ax1.set_xlabel('Time [s]')
+                ax1.set_ylabel('Time [s]',color=color)
+                border = max(abs(np.min(myinput.covariance)), abs(np.max(myinput.covariance)))
+                im = ax1.imshow(myinput.covariance, vmin=-border,  vmax = border, cmap = "seismic",interpolation= "nearest")
+                plt.colorbar(im, ax = ax1) 
 
+                ax2.set_title('Covariance matrix inverse', fontsize=10)
+                
+                color = 'tab:red'
+                ax2.set_xlabel('Time [s]')
+                ax2.set_ylabel('Time [s]',color=color)
+                border = max(abs(np.min(myinput.covariance_inverse)), abs(np.max(myinput.covariance_inverse)))
+                im = ax2.imshow(myinput.covariance_inverse, vmin=-border, vmax=border, cmap = "seismic",interpolation= "nearest")
+                plt.colorbar(im, ax = ax2) 
             
         self.figure.tight_layout()
         self.canvas.draw()
 
 
-    def E_field_graph(self):
-        global graph_option_2
-        graph_option_2='E_field'
-        self.controler.ploting_text3('Ploting E_field')
 
     def E_field_dB_graph(self):
         global graph_option_2
@@ -1608,82 +1964,21 @@ class Graphs_optimisation(QGroupBox):
         global graph_option_2
         graph_option_2='Pulse (E_field)'
         self.controler.ploting_text3('Ploting pulse E_field')
-
-    def Pulse_E_field_dB_graph(self):
-        global graph_option_2
-        graph_option_2='Pulse (E_field) [dB]'
-        self.controler.ploting_text3('Ploting pulse E_field [dB]')
-        
-
-    def E_field_residue_graph(self):
-        global graph_option_2
-        graph_option_2='E_field residue'
-        self.controler.ploting_text3('Ploting E_field residue')
-
-    def E_field_residue_dB_graph(self):
-        global graph_option_2
-        graph_option_2='E_field residue [dB]'
-        self.controler.ploting_text3('Ploting E_field residue [dB]')
-
-    def Pulse_E_field_residue_graph(self):
-        global graph_option_2
-        graph_option_2='Pulse (E_field) residue'
-        self.controler.ploting_text3('Ploting pulse E_field residue')
-
-    def Pulse_E_field_residue_dB_graph(self):
-        global graph_option_2
-        graph_option_2='Pulse (E_field) residue [dB]'
-        self.controler.ploting_text3('Ploting pulse E_field residue [dB]')
-    
-    def Delay_graph(self):
-        global graph_option_2
-        graph_option_2='Delay'
-        self.controler.ploting_text3('Ploting Delay histogram')
-        
-    def Delay_by_index_graph(self):
-        global graph_option_2
-        graph_option_2='Delay by indice'
-        self.controler.ploting_text3('Ploting Delay by index')
-        
-    def CoefA_graph(self):
-        global graph_option_2
-        graph_option_2='Coef a'
-        self.controler.ploting_text3('Ploting Coef a histogram')
-        
-    def CoefC_graph(self):
-        global graph_option_2
-        graph_option_2='Coef c'
-        self.controler.ploting_text3('Ploting Coef c histogram')
     
     def Phase_graph(self):
         global graph_option_2
         graph_option_2='Phase'
         self.controler.ploting_text3('Ploting Phase')
         
-    def Phase_std_graph(self):
-        global graph_option_2
-        graph_option_2='Std Phase'
-        self.controler.ploting_text3('Ploting Std Phase')
-        
     def Correction_param_graph(self):
         global graph_option_2
         graph_option_2='Correction parameters'
         self.controler.ploting_text3('Ploting Correction parameters')
         
-    def Correction_param_graph2(self):
-        global graph_option_2
-        graph_option_2='Correction parameters2'
-        self.controler.ploting_text3('Ploting Correction parameters')    
-        
-    def Errors(self):
-        global graph_option_2
-        graph_option_2='Errors'
-        self.controler.ploting_text3('Ploting Errors')
-        
     def Covariance_Pulse(self):
         global graph_option_2
-        graph_option_2='Covariance Pulse E field'
-        self.controler.ploting_text3('Ploting Covariance')  
+        graph_option_2='Noise matrix'
+        self.controler.ploting_text3('Ploting Covariance\n   Reminder - the matrix must be saved for its computation (Ledoit-Wolf shrinkage)')  
         
     def Pulse_E_field_std_graph(self):
         global graph_option_2
@@ -1697,15 +1992,15 @@ class Graphs_optimisation(QGroupBox):
 
     def refresh(self):
         try:
-            self.draw_graph_init(self.controler.myinput, self.controler.myreferencedata, self.controler.reference_number, 
+            self.draw_graph_init(self.controler.myinput, self.controler.myreferencedata, self.controler.ncm, self.controler.ncm_inverse, 
+                                 self.controler.reference_number, 
                                  self.controler.mydatacorrection, self.controler.delay_correction, self.controler.dilatation_correction,
                                  self.controler.leftover_correction,
-                                 self.controler.myinput_cov, self.controler.mydatacorrection_cov,
                                      self.controler.myglobalparameters,self.controler.fopt, self.controler.fopt_init,
                                       self.controler.mode, preview)
                 
         except Exception as e:
-            print(e)
+            pass
         """except:
             print("There is a refresh problem")
             pass"""
@@ -1743,9 +2038,10 @@ def main():
         sys.exit(1) 
     sys.excepthook = exception_hook 
     
-    app = QApplication([])
+    app = QApplication(sys.argv)
     controler = Controler()
     win = MainWindow(controler)
+    qApp.setApplicationName("Correct@TDS")
     #controler.init()
     win.show()
     sys.exit(app.exec_())

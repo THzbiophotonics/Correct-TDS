@@ -9,10 +9,7 @@ import numpy as np
 import h5py
 import warnings
 #import torch
-#warnings.filterwarnings("ignore") #this is just to remove the 'devided by zero' runtime worning for low frequency
-#we stricly advise to comment the above line as soon as you modify the code!
 
-#from memory_profiler import profile
 ###############################################################################
 
 j = 1j
@@ -28,17 +25,6 @@ except:
     print('mpi4py is required for parallelization')
     myrank=0
     
-###############################################################################
-def transferfunction(w,delay_guess = 0,leftover_guess = np.zeros(2)):
-     #Transfer function with no layer
-    coef = np.zeros(2)
-
-    for i in range(0,len(leftover_guess)):
-        coef[i] = leftover_guess[i]
-    wnorm = w*1e-12
-    leftnoise = (np.ones(len(wnorm))-(coef[0]*np.ones(len(wnorm))+coef[1]*(j*wnorm)**2))         
-    Z = np.exp(j*w*delay_guess)*leftnoise 
-    return Z
 
 # =============================================================================
 # classes we will use
@@ -54,6 +40,9 @@ class globalparameters:
 
 class inputdatafromfile: 
     def __init__(self, path, trace_start, trace_end, time_start, time_end, sample = 1):
+        # sample = 1 if it is a sample and 0 if not and we want to compute the covariance with
+        # trace_start, trace_end for the number of traces to study
+        
         with h5py.File(path, "r") as f:
             self.time = np.array(f["timeaxis"])
             if trace_end == -1:
@@ -103,17 +92,21 @@ class getreferencetrace:
 
 class mydata:
      def __init__(self, pulse):
-        self.pulse = pulse # pulse with sample
-        self.Spulse = torch_rfft((pulse)) # spectral field with sample
+        self.pulse = pulse # pulse
+        self.Spulse = torch_rfft((pulse)) # spectral field
         
         
 class datalist:
      def __init__(self):
-        self.pulse = []# pulse with sample
+        self.pulse = []
         self.moyenne = []
         self.time_std = []
         self.freq_std = []
         self.freq_std_with_window = []
+        self.freq_std_to_save = []  #if superresolution save the std of the cutted traces as output
+
+        self.covariance = None
+        self.covariance_inverse = None
 
         
      def add_trace(self, pulse):
@@ -122,30 +115,6 @@ class datalist:
      def add_ref(self, ref_number, refpulse):
         self.pulse.insert(ref_number, refpulse) # pulse with sample
         
-
-
-# =============================================================================
-# Change that if the GPU is needed
-# =============================================================================
-def fft_gpu(y):
-#    global using_gpu
-#    if using_gpu==1:
-#        ygpu = cp.array(y)
-#        outgpu=cp.fft.rfft(ygpu)  # implied host->device
-#        out=outgpu.get()
-#    else:
-    out = np.fft.rfft(y)
-    return(out)
-
-def ifft_gpu(y):
-#    global using_gpu
-#    if using_gpu==1:  ## Only works if the number of elements before doing the fft is pair
-#        ygpu = cp.array(y)
-#        outgpu=cp.fft.irfft(ygpu)  # implied host->device
-#        out=outgpu.get()                            
-#    else:
-    out = np.fft.irfft(y)
-    return(out)
 
 def torch_rfft(signal, axis = -1):
     #return torch.fft.rfft(torch.from_numpy(np.array(signal)), dim = axis).numpy()
@@ -171,11 +140,3 @@ def std(array,moyenne):
     ecart = np.sqrt((somme/len(array)))
     return ecart
 
-    
-"""def torch_cov(X, rowvar=True, bias=False):
-    tensor = torch.from_numpy(np.array(X))
-    tensor = tensor if rowvar else tensor.transpose(-1, -2)
-    tensor = tensor - tensor.mean(dim=-1, keepdim=True)
-    factor = 1 / (tensor.shape[-1] - int(not bool(bias)))
-    X =  factor * tensor @ tensor.transpose(-1, -2).conj()
-    return X.numpy()"""

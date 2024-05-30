@@ -4,7 +4,6 @@ Created on Sun Dec 15 12:34:04 2019
 
 @author: nayab, juliettevl
 """
-#from memory_profiler import profile
 # =============================================================================
 # Standard Python modules
 # =============================================================================
@@ -14,11 +13,8 @@ from pyswarm import pso   ## Library for optimization
 import numpy as np   ## Library to simplify the linear algebra calculations
 import scipy.optimize as optimize  ## Library for optimization
 import fitf as TDS
-import h5py #Library to import the noise matrix
-import warnings
 from scipy import signal
-#warnings.filterwarnings("ignore") #this is just to remove the 'devided by zero' runtime worning for low frequency
-#we stricly advise to comment the above line as soon as you modify the code!
+
 
 
 # =============================================================================
@@ -62,26 +58,15 @@ except:
 # classes we will use
 # =============================================================================
         
-class myfitdata: #ok
+class myfitdata: 
     def __init__(self, myinput, x):
-        #self.mytransferfunction = TDS.transferfunction(myglobalparameters.w,delay_guess,leftover_guess)
         self.pulse = fit_input(myinputdata, x)
         self.Spulse = (TDS.torch_rfft(self.pulse))
-        # =============================================================================
-    # function that returns the convolved pulse to the transfer function, it does it by different Drude model with one oscillator, n oscillators, etc
-    # =============================================================================
-    """def calculedpulse(self,delay_guess,leftover_guess, myinput):
-        global myglobalparameters
-        
-        Z = TDS.transferfunction(myglobalparameters.w,delay_guess=delay_guess,leftover_guess=leftover_guess)
-        Spectrumtot=Z*myinput.Spulse
-        Pdata=(TDS.torch_irfft((np.array(Spectrumtot)), n = len(myinput.pulse)))
-        return Pdata"""
 
     
 
 # =============================================================================
-class Callback_bfgs(object): #ok
+class Callback_bfgs(object):
     def __init__(self):
         self.nit = 0
         
@@ -109,56 +94,49 @@ class Callback_annealing(object):
         with open('algo_dualannealing_out.txt', 'a+') as filehandle:
             filehandle.write('\n iteration number %d ; error %s ; parameters %s \r\n' % (self.nit, monerreur(par), par))
 
-           
+
 
 
 
 #=============================================================================
-def errorchoice(): #basic #ok  #on veut coller le input à la ref
-    global myglobalparameters, myinputdata, mode, fit_delay, fit_leftover_noise, fit_dilatation, dt
+def errorchoice():
+    global myglobalparameters, myinputdata, mode, fit_delay, fit_leftover_noise, fit_dilatation, dt, nsample, maxval, minval
     
-    if mode == "basic":
-        def monerreur(x):
+    def monerreur(x):
+        
+        leftover_guess = np.zeros(2)
+        delay_guess = 0
+        dilatation_coefguess = np.zeros(2)
+        
+        coef = np.zeros(2) #[a,c]
+
+        x = x*(maxval-minval)+minval
+        
+        if fit_delay:
+            delay_guess = x[0]
             
-            leftover_guess = np.zeros(2)
-            delay_guess = 0
-            dilatation_coefguess = np.zeros(2)
-            
-            coef = np.zeros(2) #[a,c]
-    
-            x = denormalize(x)
-            
+        if fit_dilatation:
             if fit_delay:
-                delay_guess = x[0]
-                
-            if fit_dilatation:
-                if fit_delay:
-                    dilatation_coefguess = x[1:3]
-                else:
-                    dilatation_coefguess = x[0:2]
-                dilatation_coefguess[1] = 0
+                dilatation_coefguess = x[1:3]
+            else:
+                dilatation_coefguess = x[0:2]
+            dilatation_coefguess[1] = 0
 
-            if fit_leftover_noise:
-                    leftover_guess = x[-2:]
+        if fit_leftover_noise:
+                leftover_guess = x[-2:]
 
-            coef[0] = leftover_guess[0] #a
-            coef[1] = leftover_guess[1] #c
+        coef[0] = leftover_guess[0] #a
+        coef[1] = leftover_guess[1] #c
 
-            Z = np.exp(j*myglobalparameters.w*delay_guess)
-            myinputdatacorrected_withdelay = np.fft.irfft(Z*myinputdata.Spulse, n = len(myglobalparameters.t))
+        Z = np.exp(j*myglobalparameters.w*delay_guess)
+        myinputdatacorrected_withdelay = TDS.torch_irfft(Z*myinputdata.Spulse, n = len(myglobalparameters.t))
 
-            leftnoise = np.ones(len(myglobalparameters.t)) - coef[0]*np.ones(len(myglobalparameters.t))   #(1-a)    
-            myinputdatacorrected = leftnoise*(myinputdatacorrected_withdelay + (dilatation_coefguess[0]*myglobalparameters.t)*np.gradient(myinputdatacorrected_withdelay, dt))
-            erreur = np.linalg.norm(myreferencedata.Pulseinit - myinputdatacorrected )/np.linalg.norm(myreferencedata.Pulseinit)
-            return erreur
+        leftnoise = np.ones(len(myglobalparameters.t)) - coef[0]*np.ones(len(myglobalparameters.t))   #(1-a)    
+        myinputdatacorrected = leftnoise*(myinputdatacorrected_withdelay 
+                                          - (dilatation_coefguess[0]*myglobalparameters.t)*np.gradient(myinputdatacorrected_withdelay, dt))
+        erreur = np.linalg.norm(myreferencedata.Pulseinit[:nsample] - myinputdatacorrected[:nsample] )/np.linalg.norm(myreferencedata.Pulseinit[:nsample])
+        return erreur
             
-    elif mode == "superresolution":
-        def monerreur(x):
-            Z = fit_transfer_function(x)
-            Spectrumtot=Z*myinputdata.Spulse
-            pulse_theo=(TDS.torch_irfft((np.array(Spectrumtot)), n = len(myinputdata.pulse))) # calcul from calculedpulse. In fact it is the same calcul as in the basic mode for i!=0
-            erreur=np.linalg.norm(myreferencedata.Pulseinit-pulse_theo)/np.linalg.norm(myreferencedata.Pulseinit)
-            return erreur
     return monerreur
 
 
@@ -187,35 +165,17 @@ def fit_input(myinputdata, x):
     coef[1] = leftover_guess[1] #c
 
     Z = np.exp(j*myglobalparameters.w*delay_guess)
-    myinputdatacorrected_withdelay = np.fft.irfft(Z*myinputdata.Spulse, n = len(myglobalparameters.t))
+    myinputdatacorrected_withdelay = TDS.torch_irfft(Z*myinputdata.Spulse, n = len(myglobalparameters.t))
 
     leftnoise = np.ones(len(myglobalparameters.t)) - coef[0]*np.ones(len(myglobalparameters.t))   #(1-a)    
-    myinputdatacorrected = leftnoise*(myinputdatacorrected_withdelay + (dilatation_coefguess[0]*myglobalparameters.t)*np.gradient(myinputdatacorrected_withdelay, dt))
+    myinputdatacorrected = leftnoise*(myinputdatacorrected_withdelay  
+                                      - (dilatation_coefguess[0]*myglobalparameters.t)*np.gradient(myinputdatacorrected_withdelay, dt))
 
     return myinputdatacorrected
 
-def denormalize(x):
-    return x*(maxval-minval)+minval
 
-def fit_transfer_function(x): #ok                ref_x0 = [0.5 - 0.1**exposant_ref]
-    global myglobalparameters, fit_delay, delaymax_guess, delay_limit, fit_leftover_noise, leftcoef_guess, leftcoef_limit
-    x1 = x*(maxval-minval)+minval
-    delay_guess = 0
-    leftover_guess = np.zeros(2)
-    if(fit_leftover_noise == 1):
-        count=-1
-        for i in range (0,len(leftcoef_guess)):                    
-            count = count+1
-            leftover_guess[i] = x1[-len(leftcoef_guess)+count]
-    if (fit_delay == 1):
-        if (fit_leftover_noise == 1):
-            delay_guess = x1[-len(leftcoef_guess)-1]
-        else:
-            delay_guess = x1[-1]
-            
-    return TDS.transferfunction(myglobalparameters.w, delay_guess, leftover_guess)
 # =============================================================================
-def errorchoice_pyOpt(): #ok                ref_x0 = [0.5 - 0.1**exposant_ref]
+def errorchoice_pyOpt(): 
     def objfunc(x):  ## Function used in the Optimization function from pyOpt. For more details see http://www.pyopt.org/quickguide/quickguide.html
         monerreur = errorchoice()
         f = monerreur(x)
@@ -269,34 +229,12 @@ def optimSLSQPpar(opt_prob,maxiter): # arecopierdansdoublet #ok
 
             
 
-# =============================================================================                ref_x0 = [0.5 - 0.1**exposant_ref]
-# Change that if the GPU is needed
-# =============================================================================
-def fft_gpu(y): #ok
-#    global using_gpu
-#    if using_gpu==1:
-#        ygpu = cp.array(y)
-#        outgpu=cp.fft.rfft(ygpu)  # implied host->device
-#        out=outgpu.get()
-#    else:
-    out = np.fft.rfft(y)
-    return(out)
-
-def ifft_gpu(y): #ok
-#    global using_gpu
-#    if using_gpu==1:  ## Only works if the number of elements before doing the fft is pair
-#        ygpu = cp.array(y)
-#        outgpu=cp.fft.irfft(ygpu)  # implied host->device
-#        out=outgpu.get()                            
-#    else:
-    out = np.fft.irfft(y)
-    return(out)
-
 # =============================================================================
 # We load the model choices
-# =============================================================================                ref_x0 = [0.5 - 0.1**exposant_ref]
+# =============================================================================
 f=open(os.path.join("temp",'temp_file_1_ini.bin'),'rb') #ok
-[path_data, path_data_ref, reference_number, fit_dilatation, dilatation_limit, dilatationmax_guess, freqWindow, timeWindow, fit_delay, delaymax_guess, delay_limit, mode, 
+[path_data, path_data_ref, reference_number, fit_dilatation, dilatation_limit, dilatationmax_guess, 
+ freqWindow, timeWindow, fit_delay, delaymax_guess, delay_limit, mode, nsample,
  fit_periodic_sampling, periodic_sampling_freq_limit, fit_leftover_noise, leftcoef_guess, leftcoef_limit]=pickle.load(f)
 f.close()
 
@@ -310,49 +248,27 @@ myglobalparameters = TDS.globalparameters()
 f=open(os.path.join("temp",'temp_file_7.bin'),'rb')
 myglobalparameters = pickle.load(f)
 apply_window = pickle.load(f)
-nsample=len(myglobalparameters.t)
+nsamplenotreal=len(myglobalparameters.t)
 f.close()
 
-if apply_window == 1:  # it's not a linear operation
-    if mode == "basic":
-        windows = signal.tukey(nsample, alpha = 0.05)
+if apply_window == 1:
+    windows = signal.tukey(nsamplenotreal, alpha = 0.05)
 
 
-#f=open(os.path.join("temp",'temp_file_4.bin'),'rb') #TODO
 out_dir="temp"
-#f.close() #où mettre les optim result
 
-f=open(os.path.join("temp",'temp_file_5.bin'),'rb') #ok
+f=open(os.path.join("temp",'temp_file_5.bin'),'rb')
 [algo,swarmsize,maxiter, maxiter_ps]=pickle.load(f)
 f.close()
 
-#using_gpu = 0
 
 
 # Load fields data
 out_opt_filename = "optim_result"
 out_opt_full_info_filename=os.path.join(out_dir,'{0}_full_info.out'.format(out_opt_filename.split('.')[0]))
 
-#data = TDS.inputdatafromfile(path_data)    ## We load the signal of the measured pulse with sample
 datacorrection = TDS.datalist()
 
-"""myglobalparameters=TDS.globalparameters   # t freq w
-myglobalparameters.t=data.time*1e-12 #this assumes input files are in ps ## We load the list with the time of the experiment
-nsample=len(myglobalparameters.t)
-dt=myglobalparameters.t.item(2)-myglobalparameters.t.item(1)   ## Sample rate
-myglobalparameters.freq = np.fft.rfftfreq(nsample, dt)        ## We create a list with the frequencies for the spectrum
-myglobalparameters.w=myglobalparameters.freq*2*np.pi
-
-
-if mode == "superresolution":
-    frep=99.991499600e6 # repetition frequency of the pulse laser used in the tds measurments in Hz, 99
-    nsampleZP=np.round(1/(frep*dt)) #number of time sample betwen two pulses. IT has to be noted that it could be better to have an integer number there then the rounding does not change much
-    nsamplenotreal=nsampleZP.astype(int)
-    myglobalparameters.t=np.arange(nsampleZP)*dt  # 0001 #
-    myglobalparameters.freq = np.fft.rfftfreq(nsamplenotreal, dt)
-    myglobalparameters.w = 2*np.pi*myglobalparameters.freq
-    data.time = myglobalparameters.t*1e12 #on met à jour le time, pas vraiment nessessair emais on sait jamais si va etre reutilise plus tard
-"""
 
     # =============================================================================
 myvariables = []
@@ -363,10 +279,6 @@ minDict = {}
 maxDict = {}
 totVariablesName = myvariables
     
-    # =============================================================================
-
-
-#=================================================
     
 if fit_delay == 1:
     myVariablesDictionary['delay']=delaymax_guess
@@ -420,7 +332,7 @@ exposant_ref = 4  # au lieu d'avoir x0 = 0.5 pour la ref, qui est dejà optimal 
 
 
 
-if fit_periodic_sampling:
+if fit_periodic_sampling: #need an init point for optimization after correction
     print("Periodic sampling optimization")
 
     mymean = np.mean(data.pulse, axis = 0)
@@ -447,16 +359,13 @@ if fit_periodic_sampling:
         
         error = sum(abs((TDS.torch_rfft(corrected)[index_nu:])))
         
-        #error = 0
+        #error = 0 # Doesn't work , why?
         #for i in range(index_nu,len(myglobalparameters.freq)):
          #   error += abs(np.real(np.exp(-j*np.angle(np.fft.rfft(corrected)[i-index_nu])) * np.fft.rfft(corrected)[i]))
 
         return error
     
     res_ps = optimize.dual_annealing(error_periodic, x0 = x0_ps, maxiter = maxiter_ps, bounds=list(zip(lb_ps, ub_ps)))
-    #res_ps = optimize.minimize(error_periodic,x0_ps, method='SLSQP',bounds=list(zip(lb_ps, ub_ps)), options={'maxiter':maxiter_ps})
-    #res_ps = optimize.minimize(error_periodic,x0_ps,method='L-BFGS-B',bounds=list(zip(lb_ps, ub_ps)), options={'maxiter':1000})
-    #res_ps = pso(error_periodic,lb_ps,ub_ps,swarmsize=100,minfunc=1e-18,minstep=1e-8,debug=1,phip=0.5,phig=0.5,maxiter=100)
     
     xopt_ps = res_ps.x*(maxval_ps-minval_ps)+minval_ps
 
@@ -467,7 +376,7 @@ if fit_delay or fit_leftover_noise or fit_dilatation:
     print("Delay and amplitude and dilatation error optimization")
     for trace in  range(numberOfTrace) :
         print("Time trace "+str(trace))
-        myinputdata=TDS.mydata(data.pulse[trace])    ## We create a variable containing the data related to the measured pulse with sample
+        myinputdata=TDS.mydata(data.pulse[trace])    ## We create a variable containing the data related to the measured pulse
         data.pulse[trace] = []
         
         monerreur = errorchoice()
@@ -479,13 +388,13 @@ if fit_delay or fit_leftover_noise or fit_dilatation:
                     x0[1] = 0.505 #coef a on evite de commencer l'init à 0 car parfois probleme de convergence
                 else:
                     x0[0] = 0.505  # coef a 
-            elif not fit_dilatation and trace ==0:
+            elif not fit_dilatation and trace ==0: # si on fit pas la dilatation, on peut utiliser les anciens result d'optim, a part pour la trace 0
                 if fit_delay:
                     x0[1] = 0.505 #coef a on evite de commencer l'init à 0 car parfois probleme de convergence
                 else:
                     x0[0] = 0.505  # coef a 
         
-        if trace == reference_number:
+        if trace == reference_number: # on part pas de 0.5 car il diverge vu que c'est la ref elle meme
             ref_x0= [0.5 - 0.1**exposant_ref]*len(totVariablesName)
             # on print pas c
             if fit_leftover_noise:  
@@ -549,7 +458,7 @@ if fit_delay or fit_leftover_noise or fit_dilatation:
         # =============================================================================
         
         
-        if  algo==0: ## xopt is a list we the drudeinput's parameters that minimize 'monerreur', fopt is a list with the optimals objective values
+        if  algo==0: 
             start = time.process_time()
             xopt,fopt=pso(monerreur,lb,up,swarmsize=swarmsize,minfunc=1e-18,minstep=1e-8,debug=1,phip=0.5,phig=0.5,maxiter=maxiter) ## 'monerreur' function that we want to minimize, 'lb' and 'up' bounds of the problem
             elapsed_time = time.process_time()-start
@@ -619,8 +528,8 @@ if fit_delay or fit_leftover_noise or fit_dilatation:
                 except Exception as e:
                     print(e)
           
-        #x0 = xopt
-        if fit_leftover_noise and not fit_dilatation:
+        if fit_leftover_noise and not fit_dilatation: 
+            # si on corrige la dilatation, vaut mieux repartir de 0 sinon divergence
             if fit_delay:
                 x0[1] = xopt[1] #coef a on evite de commencer l'init à 0 car parfois probleme de convergence
             else:
@@ -643,96 +552,20 @@ if fit_delay or fit_leftover_noise or fit_dilatation:
             # saving the results
             # ========================================================================
     
-            result_optimization=[xopt,fopt]   #text result à revoir ecrire seulemnet 1 fois
-            if(trace == 0):   
+            result_optimization=[xopt,fopt]
+            if(trace == 0):   # write first time
                 f=open(os.path.join("temp",'temp_file_3.bin'),'wb')
                 pickle.dump(result_optimization,f,pickle.HIGHEST_PROTOCOL)
                 f.close()
-            else:
+            else:  #append after first time
                 f=open(os.path.join("temp",'temp_file_3.bin'),'ab')
                 pickle.dump(result_optimization,f,pickle.HIGHEST_PROTOCOL)
                 f.close()
-        
-            ## Save the data obtained via this program
-            # Save optimization parameters
-            #outputoptim = fopt
-            #outputoptim = np.append(outputoptim,xopt)
-            
-            #out_opt_h5 = h5py.File(out_opt_filename+'.h5', 'w')
-            #dset = out_opt_h5.create_dataset("output", (len(outputoptim),),dtype='float64')
-            #dset[:]=outputoptim
-        
-            #out_opt_h5.close()
-
-
-            # =========================================================================
-            # History and convergence
-            # =========================================================================
-        
-            
-            """if  (algo==1)|(algo == 2):
-                f = open("{0}_print.out".format(out_opt_full_info_filename.split('.')[0]),'r')
-            
-                # Find maxiter
-                line = f.readline()
-                while (line !=''):
-                    line = f.readline()
-                    lineSplit = line.split()
-                    if len(lineSplit)>2:
-                        if (lineSplit[0:3]==['NUMBER','OF','ITERATIONS:']):
-                            maxiter = int(lineSplit[3])
-                    
-                f.close()
-                f = open("{0}_print.out".format(out_opt_full_info_filename.split('.')[0]),'r') # Go back to the beginning
-                
-                # To find number of parameters:
-                j = 0
-                while (f.readline()!= 'OBJECTIVE FUNCTION VALUE:\n') & (j<50):
-                    j = j+1
-                P = [(f.readline())[4:]]
-                
-                while (f.readline()!= 'BEST POSITION:\n') & (j<100):
-                    j =  j+1
-                line = (f.readline())
-                line = (line.split())
-                nLines = 0
-                while(len(line)>0):#(line[0][0] == 'P'):
-                    P.extend(line[2::3])
-                    line = (f.readline())
-                    line = (line.split())
-                    nLines = nLines+1
-                bestPositions = np.zeros((maxiter,len(P)))
-                bestPositions[0]=P
-                
-                
-                for i in range(1,maxiter):
-                    j = 0
-                    while (f.readline()!= 'OBJECTIVE FUNCTION VALUE:\n') & (j<100):
-                        j = j+1 # to avoid infinite loop
-                        # One could use pass instead
-                    P = [(f.readline())[4:]]
-                    while (f.readline()!= 'BEST POSITION:\n') & (j<200):
-                        j =  j+1
-                    for nLine in range(nLines):
-                        line = (f.readline())
-                        line = (line.split())
-                        P.extend(line[2::3])
-                    bestPositions[i]=P
-                f.close()
-                
-                # Write and save file
-                historyHeaderFile = os.path.join(out_dir,"convergence.txt")
-                historyHeader = 'objective function value'
-                for name in myVariablesDictionary:
-                    historyHeader = '{}{}\t'.format(historyHeader, name)
-                np.savetxt(historyHeaderFile, bestPositions, header = historyHeader)"""
-                
-    
-    ###################################
+                   
+    ################################### After the optimization loop #############
     
     
-    if myrank == 0 and not fit_periodic_sampling:
-        #on ajoute la ref  
+    if myrank == 0 and not fit_periodic_sampling:  
         datacorrection.moyenne = np.mean(datacorrection.pulse, axis = 0)
         datacorrection.time_std = np.std(datacorrection.pulse, axis = 0)
         datacorrection.freq_std = np.std(TDS.torch_rfft(datacorrection.pulse, axis = 1),axis = 0)
@@ -764,7 +597,7 @@ if fit_periodic_sampling:
     delta_nu = myglobalparameters.freq[-1]/(len(myglobalparameters.freq)-1) # Hz
     index_nu=int(nu/delta_nu)
     
-    maxval_ps = np.array([dt/100, 12*2*np.pi*1e12, np.pi])
+    maxval_ps = np.array([dt/10, 12*2*np.pi*1e12, np.pi])
     minval_ps = np.array([0, 6*2*np.pi*1e12, -np.pi])
     guess_ps = xopt_ps
     
@@ -801,10 +634,11 @@ if fit_periodic_sampling:
     fopt_ps = res_ps.fun
     
     result_optimization = [xopt_ps, fopt_ps]
+    
     if fit_delay or fit_leftover_noise or fit_dilatation:
-    	f=open(os.path.join("temp",'temp_file_3.bin'),'ab')
+        f=open(os.path.join("temp",'temp_file_3.bin'),'ab')
     else:
-    	f=open(os.path.join("temp",'temp_file_3.bin'),'wb')
+        f=open(os.path.join("temp",'temp_file_3.bin'),'wb')
     pickle.dump(result_optimization,f,pickle.HIGHEST_PROTOCOL)
     f.close()
     
@@ -836,6 +670,5 @@ if fit_periodic_sampling:
     f.close()
 
 ###################################################
-         #  ****************************************** PERIODIC SAMPLING *******************************************   
 
 

@@ -13,9 +13,14 @@ import h5py
 import fitf as TDS
 import warnings
 from scipy import signal
-#warnings.filterwarnings("ignore") #this is just to remove the 'devided by zero' runtime worning for low frequency
-#we stricly advise to comment the above line as soon as you modify the code!
+from sklearn.covariance import GraphicalLassoCV, LedoitWolf, OAS
+from pathlib import Path as path_
 
+
+import numba #pour inverser rapidement
+@numba.jit
+def inv_nla_jit(A):
+    return np.linalg.inv(A)
 ###############################################################################
 
 j = 1j
@@ -68,6 +73,7 @@ class Controler(ControlerBase):
         # Initialisation:
         
         self.myreferencedata=TDS.getreferencetrace
+        
         self.data=TDS.inputdatafromfile
         self.data_without_sample=TDS.inputdatafromfile
         
@@ -75,18 +81,19 @@ class Controler(ControlerBase):
         
         self.nsample=None
         self.nsamplenotreal=None
-        self.dt=None   ## Sample rate
+        self.dt=None   ## Sampling rate
         
         self.myinput = TDS.datalist()
-        self.mydatacorrection=TDS.datalist()
-        self.myinput_cov = None
-        self.mydatacorrection_cov = None        
+        self.mydatacorrection=TDS.datalist() 
+        self.myinput_without_sample = TDS.datalist()
+        
+        self.ncm = None  #noise convolution matrix
+        self.ncm_inverse = None
         
         self.delay_correction = []
         self.leftover_correction = []
         self.periodic_correction = []
         self.dilatation_correction = []
-        self.errorIndex=0
         
         ## parameters for the optimization algorithm
         self.swarmsize=1
@@ -120,8 +127,6 @@ class Controler(ControlerBase):
         
         self.Lfiltering = None
         self.Hfiltering = None
-        self.set_to_zeros = None
-        self.dark_ramp = None
         
         self.algo = None
         self.mode = None
@@ -142,27 +147,25 @@ class Controler(ControlerBase):
 
     def init(self):
         self.refreshAll("Initialisation: Ok")
-        
-        """    def error_message_path(self):
-        self.refreshAll("Error: Please enter a valid file(s).")"""
 
     def loading_text(self):
         self.refreshAll("\n Processing... \n")
 
     def choices_ini(self, path_data, path_data_ref, trace_start, trace_end, time_start, time_end,
-                    Lfiltering_index, Hfiltering_index, zeros_index, dark_index, cutstart, cutend,sharpcut, slope, intercept,modesuper, apply_window):
+                    Lfiltering_index, Hfiltering_index, cutstart, cutend,sharpcut, modesuper, apply_window):
         """Process all the informations given in the first panel of initialisation: 
             create instances of classes to store data, apply filters"""
 
         self.path_data = path_data
+        self.path_data_ref = path_data_ref
         self.optim_succeed = 0
         
         self.myinput = TDS.datalist() # Warning: Don't remove the parentheses
-
+        self.myinput_without_sample = TDS.datalist()
         self.mydatacorrection=TDS.datalist()
         
-        self.myinput_cov = None
-        self.mydatacorrection_cov = None    
+        self.ncm = None  
+        self.ncm_inverse = None
         self.delay_correction = []
         self.leftover_correction = []
         self.periodic_correction = []
@@ -175,18 +178,29 @@ class Controler(ControlerBase):
         self.time_start = time_start
         self.time_end = time_end
         
+         #####################################################################
+         
         with h5py.File(path_data, "r") as f:
             l = len(f)-1
             if trace_start >= l or (trace_end!=-1 and trace_end >= l):
-                self.refreshAll3("Invalid length, the file contains "+str(l)+" traces")
-            
+                self.refreshAll3("Invalid length, the file contains "+str(l)+" traces")        
         
-        self.data= TDS.inputdatafromfile(path_data, self.trace_start,self.trace_end, self.time_start, self.time_end)    ## We load the signal of the measured pulse with sample
-        #self.myinput_cov = TDS.torch_cov(self.data.Pulseinit, rowvar=False)
-        #print(np.shape(self.myinput_cov))
-        if path_data_ref:
-            self.data_without_sample= TDS.inputdatafromfile(path_data_ref, self.trace_start,self.trace_end, self.time_start, self.time_end, sample = 0)    ## We load the signal of the measured pulse with sample
+        self.data= TDS.inputdatafromfile(path_data, self.trace_start,self.trace_end, self.time_start, self.time_end)    ## We load the signal of the measured pulse
 
+        if path_data_ref:
+            with h5py.File(path_data_ref, "r") as f:
+                l = len(f)-1
+                if trace_start >= l or (trace_end!=-1 and trace_end >= l):
+                    self.refreshAll3("Invalid length, the file without sample contains "+str(l)+" traces")  
+                    
+            self.data_without_sample= TDS.inputdatafromfile(path_data_ref, self.trace_start,self.trace_end, self.time_start, self.time_end, sample = 0)
+        
+            if self.data_without_sample.numberOfTrace != self.data.numberOfTrace or len(self.data_without_sample.Pulseinit[0])!=len(self.data.Pulseinit[0]):
+                self.refreshAll3("Invalid length, the two h5 files doesn't have the same dimension")
+                
+     ###########################################################################
+    
+    
         self.reference_number = self.data.ref_number
         self.myreferencedata = TDS.getreferencetrace(path_data, self.reference_number, self.trace_start, self.time_start)
 
@@ -196,11 +210,8 @@ class Controler(ControlerBase):
         self.myglobalparameters.freq = np.fft.rfftfreq(self.nsample, self.dt)        ## We create a list with the frequencies for the spectrum
         self.myglobalparameters.w = self.myglobalparameters.freq*2*np.pi
         
-                    # if one changes defaults values in TDSg this also has to change:
-        self.Lfiltering = Lfiltering_index # 1 - Lfiltering_index 
-        self.Hfiltering = Hfiltering_index # 1 - Hfiltering_index
-        self.set_to_zeros = zeros_index # 1 - zeros_index
-        self.dark_ramp = dark_index
+        self.Lfiltering = Lfiltering_index 
+        self.Hfiltering = Hfiltering_index 
         
         if modesuper == 1:
             frep=99.991499600e6 # repetition frequency of the pulse laser used in the tds measurments in Hz, 99
@@ -217,10 +228,8 @@ class Controler(ControlerBase):
         Freqwindowend = np.ones(len(self.myglobalparameters.freq))
         if self.Lfiltering:
             stepsmooth = cutstart/sharpcut
-            Freqwindowstart = (0.5)+(0.5)*np.tanh((self.myglobalparameters.freq-cutstart)/stepsmooth)
+            Freqwindowstart = 0.5+0.5*np.tanh((self.myglobalparameters.freq-cutstart)/stepsmooth)
         if self.Hfiltering:
-            #cutend = comm.bcast(cutend,root=0) #for parralellisation
-            #sharpcut = comm.bcast(sharpcut,root=0)
             stepsmooth = cutend/sharpcut
             Freqwindowend = 0.5-0.5*np.tanh((self.myglobalparameters.freq-cutend)/stepsmooth)                                 
         
@@ -228,7 +237,7 @@ class Controler(ControlerBase):
         self.timeWindow = np.ones(self.nsamplenotreal)
         
         for trace in  range(self.data.numberOfTrace):
-            #print(trace)
+
             myinputdata=TDS.mydata(self.data.Pulseinit[trace])    ## We create a variable containing the data related to the measured pulse with sample
 
             if modesuper == 1:
@@ -237,7 +246,7 @@ class Controler(ControlerBase):
 
                 if trace == 0: # on fait le padding une seule fois sur la ref
                     self.myreferencedata.Pulseinit=np.pad(self.myreferencedata.Pulseinit,(0,self.nsamplenotreal-self.nsample),'constant',constant_values=(0))
-                    self.myreferencedata.Spulseinit=(TDS.fft_gpu((self.myreferencedata.Pulseinit)))    # fft computed with GPU
+                    self.myreferencedata.Spulseinit=(TDS.torch_rfft((self.myreferencedata.Pulseinit)))    # fft computed with GPU
             else:
                 self.mode = "basic"
                 
@@ -249,49 +258,23 @@ class Controler(ControlerBase):
             myinputdata.Spulse         = myinputdata.Spulse        *self.Freqwindow
             myinputdata.pulse          = TDS.torch_irfft(myinputdata.Spulse, n = self.nsamplenotreal)
                     
-            if self.dark_ramp:
-                #Enleve la rampe du dark noise du signal
-                if trace == 0:
-                    self.myreferencedata.Pulseinit = self.myreferencedata.Pulseinit - slope*self.myglobalparameters.t*1e12+intercept
-                myinputdata.pulse = myinputdata.pulse - slope*self.myglobalparameters.t*1e12+intercept
                 
-            if self.set_to_zeros:
-                #Remplace la fin du pulse d'input par des 0 (de la longueur du decalage entre les 2 pulses)
-
-                #on veut coller le input et  la ref
-
-                imax1 = np.argmax(myinputdata.pulse)
-                imax2 = np.argmax(self.myreferencedata.Pulseinit)
-                tmax1 = self.myglobalparameters.t[imax1]
-                tmax2 = self.myglobalparameters.t[imax2]
-                deltaTmax = tmax2-tmax1
-                    
-                tlim1 = self.myglobalparameters.t[self.nsample-1]-(5*deltaTmax/4)
-                tlim2 = self.myglobalparameters.t[self.nsample-1]-(deltaTmax)
-                for k in range(self.nsample):
-                    if self.myglobalparameters.t[k] < tlim1:
-                        self.timeWindow[k] = 1
-                    elif self.myglobalparameters.t[k] >= tlim2:
-                        self.timeWindow[k] = 0
-                    else:
-                        term = (4/deltaTmax)*(self.myglobalparameters.t[k]-tlim1)
-                        self.timeWindow[k] = 1-(3*term**2-2*term**3)
-                myinputdata.pulse = myinputdata.pulse*self.timeWindow
-                myinputdata.Spulse = TDS.torch_rfft((myinputdata.pulse))
 
             self.myinput.add_trace(myinputdata.pulse)
-        #if modesuper:
-         #   self.myinput_cov = np.cov(np.array(self.myinput.pulse)[:,:self.nsample], rowvar=False)/np.sqrt(self.data.numberOfTrace)
-        #else:
-         #   self.myinput_cov = np.cov(self.myinput.pulse, rowvar=False)/np.sqrt(self.data.numberOfTrace)
-        self.myinput.moyenne = np.mean(self.myinput.pulse, axis= 0)
+            if path_data_ref:
+                self.myinput_without_sample.add_trace(self.data_without_sample.Pulseinit[trace])
+                self.data_without_sample.Pulseinit[trace] = []
+            
+        if path_data_ref:
+            self.myinput_without_sample.moyenne = np.mean(self.myinput_without_sample.pulse, axis= 0)
+            
+        self.myinput.moyenne = np.mean(self.myinput.pulse, axis= 0)  ### TDS.mean and TDS.std instead for big dataset
         self.myinput.time_std = np.std(self.myinput.pulse, axis = 0)
         self.myinput.freq_std = np.std(TDS.torch_rfft(self.myinput.pulse, axis = 1), axis = 0)
         
-        if apply_window == 1:  # it's not a linear operation
-            if self.mode == "basic":
-                windows = signal.tukey(self.nsample, alpha = 0.05)
-                self.myinput.freq_std_with_window = np.std(TDS.torch_rfft(self.myinput.pulse*windows, axis = 1), axis = 0)
+        if apply_window == 1:  # it's not a linear operation in freq domain
+            windows = signal.tukey(self.nsamplenotreal, alpha = 0.05)
+            self.myinput.freq_std_with_window = np.std(TDS.torch_rfft(self.myinput.pulse*windows, axis = 1), axis = 0)
 
         if not os.path.isdir("temp"):
             os.mkdir("temp")
@@ -305,15 +288,11 @@ class Controler(ControlerBase):
         pickle.dump(apply_window,f,pickle.HIGHEST_PROTOCOL)
         f.close()
         
-        self.data.Pulseinit = [] #don't forget to empty if, important
+        self.data.Pulseinit = [] #don't forget to empty it, important for memory
 
 
     def choices_ini_param( self, fit_delay, delaymax_guess, delay_limit, fit_dilatation, dilatation_limit,dilatationmax_guess,
                     fit_periodic_sampling, periodic_sampling_freq_limit, fit_leftover_noise, leftcoef_guess, leftcoef_limit):
-        """Process all the informations given in the first panel of initialisation: 
-            create instances of classes to store data, apply filters, store choices in temp file 1_ini.
-            Note that data is reload in creation of class myfitdata and before optimization, 
-            any operations on data, like filters, has to be applied in the 3 cases."""
 
 
         self.fit_delay = fit_delay
@@ -330,7 +309,7 @@ class Controler(ControlerBase):
 
             # files for choices made
         mode_choicies_opt=[self.path_data, self.path_data_ref, self.reference_number, self.fit_dilatation, self.dilatation_limit, self.dilatationmax_guess,
-                               self.Freqwindow,self.timeWindow, self.fit_delay, self.delaymax_guess, self.delay_limit,  self.mode, 
+                               self.Freqwindow,self.timeWindow, self.fit_delay, self.delaymax_guess, self.delay_limit,  self.mode, self.nsample,
                                self.fit_periodic_sampling, self.periodic_sampling_freq_limit, self.fit_leftover_noise, self.leftcoef_guess, self.leftcoef_limit]
     
         if not os.path.isdir("temp"):
@@ -372,6 +351,9 @@ class Controler(ControlerBase):
         
         
     def begin_optimization(self,nb_proc):
+        
+        #self.ncm = None
+        
         """Run optimization and update layers"""
         output=""
         error=""
@@ -402,8 +384,9 @@ class Controler(ControlerBase):
                 error = ""
                 output = ""
         elif sys.platform=="linux" or sys.platform=="darwin":
-            print("OS:Linux/MacOS \n")
+            # print("OS:Linux/MacOS \n")
             optimization_filename = os.path.join('temp',"opt.sh")
+            # print(optimization_filename)
             try:
                 # Check if Open MPI is correctly installed
                 try:
@@ -416,33 +399,42 @@ class Controler(ControlerBase):
                     error_mpi = "Command mpiexec not recognized."
 
                 try:
-                    command = './py3-env/bin/python --version'
+                    command = './correct-env/bin/python --version'
                     process=subprocess.Popen(command.split(),stdout=subprocess.PIPE,stderr=subprocess.PIPE)
                     output_py3,error_py3 = process.communicate()
                     returncode_py3=process.returncode
-                    python_path = "./py3-env/bin/python"
+                    # print(f"####\npython venv\n####")
+                    python_path = "./correct-env/bin/python"
                 except:
                     try:
-                        command = "python3 --version"
+                        command = "python --version"
                         process=subprocess.Popen(command.split(),stdout=subprocess.PIPE,stderr=subprocess.PIPE)
                         output_py3,error_py3 = process.communicate()
                         returncode_py3=process.returncode
-                        python_path = "python3"
+                        python_path = "python"
+                        # print(f" python version worked" if returncode_py3 == 0 else f"python version failed")
                     except:
                         returncode_py3 = 1
-                        error_py3 = "Command python3 not recognized."
+                        error_py3 = "Command python not recognized."
 
                 # Run optimization
                 if returncode_mpi==0:
                     if returncode_py3==0:
-                        command = 'mpiexec -n {0} {1} opt.py'.format(nb_proc, python_path)
+                        # fpath = os.getcwd()
+                        # fpath = os.path.join(fpath,"opt.py")
+                        # print(fpath)
+                        # print(f"enter mpiexec command")
+                        # command = f"#!/bin/sh\nmpiexec -n 1 {python_path} opt.py"
+                        command = f"#!/bin/sh\npython opt.py"
+                        # command = 'mpiexec -n 20 {1} opt.py'.format(python_path)
+                        # print(command)
                     else:
                         print("Problem with python command : \n {} \n".format(error_py3))
                         return(0)
                 else:
                     print("No parallelization! You don't have MPI installed or there's a problem with your MPI: \n {}".format(error_mpi))
                     if returncode_py3==0:
-                        command = '{0} opt.py'.format(python_path)
+                        command = '#!/bin/sh\n{0} opt.py'.format(python_path)
                     else:
                         print("Problem with python command : \n {} \n".format(error_py3))
                         return(0)
@@ -450,13 +442,22 @@ class Controler(ControlerBase):
                 try:
                     with open(optimization_filename, 'w') as OPATH:
                         OPATH.writelines(command)
+                    # print(f"permission ask")
                     returncode = subprocess.call('chmod +x ./{}'.format(optimization_filename),shell=True)
                     if returncode == 0:
-                        returncode = subprocess.call('./{}'.format(optimization_filename),shell=True)
+                        # print(f"permission granted")
+                        # print(os.getcwd())
+                        # returncode = subprocess.call('./{}'.format(optimization_filename),shell=True)
+                        optimization_filename = path_().cwd().joinpath("temp").joinpath("opt.sh")
+                        # print(f"{optimization_filename}")
+                        process = subprocess.run(f"{optimization_filename}",shell=True)
+                        # print(process.returncode)
+                        # print(returncode)
                     if returncode == 1:
                         command = ""
                         with open("launch_opt.py", 'w') as OPATH:
                             OPATH.writelines(command)
+                            # print(f"created launch_opt.py")
                         try:
                             import launch_opt
                             try:
@@ -464,10 +465,10 @@ class Controler(ControlerBase):
                                 f.close()
                                 returncode=0
                             except:
-                                print("Unknown problem.")
+                                print("Unknown problem. cannot open temp file 3")
                                 sys.exit()
                         except:
-                            print("Unknown problem.")
+                            print("Unknown problem. cannot import launch opt")
                             sys.exit()
                 except:
                     returncode = 1
@@ -519,29 +520,9 @@ class Controler(ControlerBase):
             self.fopt_init = pickle.load(f)        #available only for delay,dilatation,amplitude correction
             f.close()
             
-            """data_for_cov = []
-            if self.path_data_ref:
-                if self.mode == "superresolution":
-                    transfer_function = TDS.torch_rfft(np.mean(self.mydatacorrection, axis = 0)[:self.nsample])/TDS.torch_rfft(np.mean(self.data_without_sample.Pulseinit, axis = 0))
-                else:
-                    transfer_function = TDS.torch_rfft(np.mean(self.mydatacorrection, axis = 0))/TDS.torch_rfft(np.mean(self.data_without_sample.Pulseinit, axis = 0))
-                for i in range(self.data.numberOfTrace):
-                    data_for_cov.append(TDS.torch_irfft(self.data_without_sample.Spulseinit*transfer_function), n = len(self.myglobalparameters.t))
-                self.mydatacorrection_cov = np.cov(data_for_cov,rowvar = False)/np.sqrt(self.data.numberOfTrace)
-            else:
-                if self.mode == "superresolution":
-                    self.mydatacorrection_cov = np.cov(np.array(self.mydatacorrection.pulse)[:,:self.nsample], rowvar=False)/np.sqrt(self.data.numberOfTrace)
-                else:
-                    self.mydatacorrection_cov = np.cov(self.mydatacorrection.pulse, rowvar=False)/np.sqrt(self.data.numberOfTrace)"""
 
             message = "Optimization terminated successfully\nCheck the output directory for the result\n\n"
-            """if self.fit_leftover_noise and self.fit_delay:
-                message += 'For delay and amplitude\n    The last best error was:     {}'.format(fopt) + '\n    The last best parameters were: \t{}\n'.format(xopt[:-1]) + "\n"
-            elif self.fit_delay:
-                message += 'For delay\n    The last best error was:     {}'.format(fopt) + '\n    The last best parameters were:     {}\n'.format(xopt) + "\n"
-            elif self.fit_leftover_noise:
-                message += 'For amplitude\n    The last best error was:     {}'.format(fopt) + '\n    The last best parameters were:     {}\n'.format(xopt[:-1]) + "\n"
-             """   
+  
             if self.fit_periodic_sampling:
                message += 'For periodic sampling: \n The best error was:     {}'.format(fopt_ps) + '\nThe best parameters were:     {}\n'.format(xopt_ps) + "\n"
             if self.fit_leftover_noise or self.fit_delay or self.fit_dilatation:
@@ -561,11 +542,7 @@ class Controler(ControlerBase):
             print('Output : \n {0} \n Error : \n {1} \n'.format(output, error))
             return(0)
         
-    def save_data(self, filename, path, file):
-        #file = 0 mean
-        #file = 1 params
-        #2 each traces
-        #3 covariance
+    def save_data(self, filename, path, file, cov_algo = 1):
       
         citation= "Please cite this paper in any communication about any use of Correct@TDS : \n Coming soon..."
         custom = "\n Average over "+str(self.data.numberOfTrace)+" waveforms. Timestamp: "
@@ -574,20 +551,14 @@ class Controler(ControlerBase):
                     if self.optim_succeed:
                         if file == 0:
                             title = "\n timeaxis (ps) \t E-field"
-                            if self.mode == "superresolution":
-                                out = np.column_stack((self.data.time, self.mydatacorrection.moyenne[:self.nsample]))
-                            else:
-                                out = np.column_stack((self.myglobalparameters.t*1e12, self.mydatacorrection.moyenne))
-                            
+                            out = np.column_stack((self.data.time, self.mydatacorrection.moyenne[:self.nsample]))
+
                             if self.data.timestamp:
                                 custom+= str(self.data.timestamp[0])
                             else:
                                 custom+= "unknown"
                             np.savetxt(os.path.join(path,filename),out, header= citation+custom+title, delimiter = "\t")
-                        
-                        #hdf =  h5py.File(os.path.join(path,filename.h5"),"w")
-                        #dataset = hdf.create_dataset("covariance_inverse", data = np.linalg.inv(self.mydatacorrection_cov))
-                        #dataset.attrs["CITATION"] = citation
+                    
                         
                         if file == 1:
                             to_save = []
@@ -623,20 +594,18 @@ class Controler(ControlerBase):
                         if file == 2:
                             #save in hdf5
                             hdf =  h5py.File(os.path.join(path,filename),"w")
-                            dataset = hdf.create_dataset(str("0"), data = self.mydatacorrection.pulse[0])
+                            dataset = hdf.create_dataset(str("0"), data = self.mydatacorrection.pulse[0][:self.nsample])
                             dataset.attrs["CITATION"] = citation
+                            
                             if self.data.timestamp:
                                 dataset.attrs["TIMESTAMP"] = self.data.timestamp[0]
-                            if self.mode == "superresolution":
-                                hdf.create_dataset('timeaxis', data = self.data.time)
-                            else:
-                                hdf.create_dataset('timeaxis', data = self.myglobalparameters.t*1e12)
+
+                            hdf.create_dataset('timeaxis', data = self.data.time)
+                                
                             count = 1
                             for i in self.mydatacorrection.pulse[1:]:
-                                if self.mode == "superresolution":
-                                    dataset = hdf.create_dataset(str(count), data = i[:self.nsample])
-                                else:
-                                    dataset = hdf.create_dataset(str(count), data = i)
+                                dataset = hdf.create_dataset(str(count), data = i[:self.nsample])
+
                                 dataset.attrs["CITATION"] = citation
                                 if self.data.timestamp:
                                     dataset.attrs["TIMESTAMP"] = self.data.timestamp[count]
@@ -645,10 +614,8 @@ class Controler(ControlerBase):
                             
                         if file == 3:
                             title = "\n timeaxis (ps) \t Std E-field"
-                            if self.mode == "superresolution":
-                                out = np.column_stack((self.data.time, self.mydatacorrection.time_std[:self.nsample]))
-                            else:
-                                out = np.column_stack((self.myglobalparameters.t*1e12, self.mydatacorrection.time_std))
+
+                            out = np.column_stack((self.data.time, self.mydatacorrection.time_std[:self.nsample]))
                             
                             if self.data.timestamp:
                                 custom+= str(self.data.timestamp[0])
@@ -659,7 +626,9 @@ class Controler(ControlerBase):
                         if file == 4:
                             title = "\n Frequency (Hz) \t Std E-field"
                             if self.mode == "superresolution":
-                                out = np.column_stack((self.myglobalparameters.freq, self.mydatacorrection.freq_std[:self.nsample]))
+                                if not self.mydatacorrection.freq_std_to_save:
+                                    self.mydatacorrection.freq_std_to_save = np.std(TDS.torch_rfft([self.mydatacorrection.pulse[i][:self.nsample] for i in range(self.data.numberOfTrace)], axis = 1),axis = 0)
+                                out = np.column_stack((np.fft.rfftfreq(self.nsample, self.dt), self.mydatacorrection.freq_std_to_save))
                             else:
                                 out = np.column_stack((self.myglobalparameters.freq, self.mydatacorrection.freq_std))
                             
@@ -669,41 +638,95 @@ class Controler(ControlerBase):
                                 custom+= "unknown"
                             np.savetxt(os.path.join(path,filename),out, header= citation+custom+title, delimiter = "\t")
                             
-                    else:
+                            
+                        if file == 5:
+                            if self.mydatacorrection.covariance is None:
+                                if self.path_data_ref:
+                                    transfer_function = TDS.torch_irfft(TDS.torch_rfft(self.mydatacorrection.moyenne[:self.nsample])/TDS.torch_rfft(self.myinput_without_sample.moyenne))
+                            
+                                if cov_algo == 1:
+                                    if self.path_data_ref:
+                                        cov_with_ref = LedoitWolf().fit([np.convolve(transfer_function, self.myinput_without_sample.pulse[i])[:self.nsample] for i in range(self.data.numberOfTrace) ])
+                                        self.myinput_without_sample.covariance =  cov_with_ref.covariance_ /self.data.numberOfTrace
+                                        cov_with_ref = []
+                                        
+                                    cov = LedoitWolf().fit(np.array(self.mydatacorrection.pulse)[:,:self.nsample])
+                                    self.mydatacorrection.covariance =  cov.covariance_ /self.data.numberOfTrace
+                                    
+
+                                    
+                                elif cov_algo == 2:
+                                    if self.path_data_ref:
+                                        cov_with_ref = OAS().fit([np.convolve(transfer_function, self.myinput_without_sample.pulse[i])[:self.nsample] for i in range(self.data.numberOfTrace) ])
+                                        self.myinput_without_sample.covariance =  cov_with_ref.covariance_ /self.data.numberOfTrace
+                                        cov_with_ref = []
+                                        
+                                    cov = OAS().fit(np.array(self.mydatacorrection.pulse)[:,:self.nsample])
+                                    self.mydatacorrection.covariance = cov.covariance_ /self.data.numberOfTrace
+                                    
+
+                                    
+                                elif cov_algo == 3:
+                                    if self.path_data_ref:
+                                        model = GraphicalLassoCV(cv = 2, alphas=2, n_refinements=10, max_iter = 100, n_jobs=1, tol = 1e-6, verbose = True)
+                                        cov_with_ref = model.fit([np.convolve(transfer_function, self.myinput_without_sample.pulse[i])[:self.nsample] for i in range(self.data.numberOfTrace) ])
+                                        self.myinput_without_sample.covariance =  cov_with_ref.covariance_ /self.data.numberOfTrace
+                                        alpha_myinput_without_sample = cov_with_ref.alpha_
+                                        cov_with_ref = []
+                                        
+                                    model = GraphicalLassoCV(cv = 2, alphas=2, n_refinements=10, max_iter = 100,n_jobs= 1, tol = 1e-6, verbose = True)
+                                    cov = model.fit(np.array(self.mydatacorrection.pulse)[:,:self.nsample])
+                                    self.mydatacorrection.covariance = cov.covariance_ /self.data.numberOfTrace
+                                    alpha_mydatacorrection = cov.alpha_
+                                    
+                                   
+                            if self.path_data_ref:
+                                hdf =  h5py.File(os.path.join(path,filename),"w")
+                                self.ncm = self.mydatacorrection.covariance + self.myinput_without_sample.covariance
+                                self.ncm_inverse = inv_nla_jit(self.ncm)
+                                dataset = hdf.create_dataset("noise_convolution_matrix_inverse", data = self.ncm_inverse)
+                                dataset.attrs["CITATION"] = citation
+                                if self.data.timestamp:
+                                    dataset.attrs["REFEFERENCE_TIMESTAMP"] = self.data.timestamp[0]
+                                if self.data_without_sample.timestamp:
+                                    dataset.attrs["SAMPLE_TIMESTAMP"] = self.data_without_sample.timestamp[0]
+                                    
+                            else:
+                                hdf =  h5py.File(os.path.join(path,filename),"w")
+                                if self.mydatacorrection.covariance_inverse is None:
+                                    self.mydatacorrection.covariance_inverse = cov.precision_*self.data.numberOfTrace
+                                    cov = []
+                                dataset = hdf.create_dataset("covariance_inverse", data = self.mydatacorrection.covariance_inverse)
+                                dataset.attrs["CITATION"] = citation
+                                if self.data.timestamp:
+                                    dataset.attrs["TIMESTAMP"] = self.data.timestamp[0]
+                            hdf.close()
+
+                    else: #if no optimization
                         if file == 0:
                             title = "\n timeaxis (ps) \t E-field"
                             if self.data.timestamp:
                                 custom+= str(self.data.timestamp[0])
                             else:
                                 custom+= "unknown"
-                            if self.mode == "superresolution":
-                                out = np.column_stack((self.data.time, self.myinput.moyenne[:self.nsample]))
-                            else:
-                                out = np.column_stack((self.myglobalparameters.t*1e12, self.myinput.moyenne))
-                            np.savetxt(os.path.join(path,filename),out, delimiter = "\t", header= citation+custom+title)
-                        
-                        #hdf =  h5py.File(os.path.join(path,filename),"w")
-                        #dataset = hdf.create_dataset("covariance_inverse", data = np.linalg.inv(self.myinput_cov))
-                        #dataset.attrs["CITATION"] = citation
+                            out = np.column_stack((self.data.time, self.myinput.moyenne[:self.nsample]))
+
+                            np.savetxt(os.path.join(path,filename),out, delimiter = "\t", header= citation+custom+title)                    
                         
                         if file == 2:
                             #save in hdf5
                             hdf =  h5py.File(os.path.join(path,filename),"w")
-                            dataset = hdf.create_dataset(str("0"), data = self.myinput.pulse[0])
+                            dataset = hdf.create_dataset(str("0"), data = self.myinput.pulse[0][:self.nsample])
                             dataset.attrs["CITATION"] = citation
                             if self.data.timestamp:
                                 dataset.attrs["TIMESTAMP"] = self.data.timestamp[0]
-                            if self.mode == "superresolution":
-                                hdf.create_dataset('timeaxis', data = self.data.time)
-                            else:
-                                hdf.create_dataset('timeaxis', data = self.myglobalparameters.t*1e12)
-                               
+                                
+                            hdf.create_dataset('timeaxis', data = self.data.time)
+                  
                             count = 1
                             for i in self.myinput.pulse[1:]:
-                                if self.mode == "superresolution":
-                                    dataset = hdf.create_dataset(str(count), data = i[:self.nsample])
-                                else:
-                                    dataset = hdf.create_dataset(str(count), data = i)
+                                dataset = hdf.create_dataset(str(count), data = i[:self.nsample])
+
                                 dataset.attrs["CITATION"] = citation
                                 if self.data.timestamp:
                                     dataset.attrs["TIMESTAMP"] = self.data.timestamp[count]
@@ -716,10 +739,9 @@ class Controler(ControlerBase):
                                 custom+= str(self.data.timestamp[0])
                             else:
                                 custom+= "unknown"
-                            if self.mode == "superresolution":
-                                out = np.column_stack((self.data.time, self.myinput.time_std[:self.nsample]))
-                            else:
-                                out = np.column_stack((self.myglobalparameters.t*1e12, self.myinput.time_std))
+
+                            out = np.column_stack((self.data.time, self.myinput.time_std[:self.nsample]))
+
                             np.savetxt(os.path.join(path,filename),out, delimiter = "\t", header= citation+custom+title)
                             
                             
@@ -730,11 +752,76 @@ class Controler(ControlerBase):
                             else:
                                 custom+= "unknown"
                             if self.mode == "superresolution":
-                                out = np.column_stack((self.myglobalparameters.freq, self.myinput.freq_std[:self.nsample]))
+                                if not self.myinput.freq_std_to_save:
+                                    self.myinput.freq_std_to_save = np.std(TDS.torch_rfft([self.myinput.pulse[i][:self.nsample] for i in range(self.data.numberOfTrace)], axis = 1),axis = 0)
+                                out = np.column_stack((np.fft.rfftfreq(self.nsample, self.dt), self.myinput.freq_std_to_save))
                             else:
                                 out = np.column_stack((self.myglobalparameters.freq, self.myinput.freq_std))
+
                             np.savetxt(os.path.join(path,filename),out, delimiter = "\t", header= citation+custom+title)
                             
+                        if file == 5:
+                            if self.myinput.covariance is None:
+                                if self.path_data_ref:
+                                    transfer_function = TDS.torch_irfft(TDS.torch_rfft(self.myinput.moyenne[:self.nsample])/TDS.torch_rfft(self.myinput_without_sample.moyenne))
+                            
+                                if cov_algo == 1:
+                                    if self.path_data_ref:
+                                        cov_with_ref = LedoitWolf().fit([np.convolve(transfer_function, self.myinput_without_sample.pulse[i])[:self.nsample] for i in range(self.data.numberOfTrace) ])
+                                        self.myinput_without_sample.covariance =  cov_with_ref.covariance_ /self.data.numberOfTrace
+                                        cov_with_ref = []
+                                        
+                                    cov = LedoitWolf().fit(np.array(self.myinput.pulse)[:,:self.nsample])
+                                    self.myinput.covariance =  cov.covariance_ /self.data.numberOfTrace
+                                    
+
+                                    
+                                elif cov_algo == 2:
+                                    if self.path_data_ref:
+                                        cov_with_ref = OAS().fit([np.convolve(transfer_function, self.myinput_without_sample.pulse[i])[:self.nsample] for i in range(self.data.numberOfTrace) ])
+                                        self.myinput_without_sample.covariance =  cov_with_ref.covariance_ /self.data.numberOfTrace
+                                        cov_with_ref = []
+                                        
+                                    cov = OAS().fit(np.array(self.myinput.pulse)[:,:self.nsample])
+                                    self.myinput.covariance = cov.covariance_ /self.data.numberOfTrace
+                                    
+
+                                    
+                                elif cov_algo == 3:
+                                    if self.path_data_ref:
+                                        model = GraphicalLassoCV(cv = 2, alphas=2, n_refinements=10, n_jobs = 1, max_iter = 100, tol = 1e-6, verbose = True)
+                                        cov_with_ref = model.fit([np.convolve(transfer_function, self.myinput_without_sample.pulse[i])[:self.nsample] for i in range(self.data.numberOfTrace) ])
+                                        self.myinput_without_sample.covariance =  cov_with_ref.covariance_ /self.data.numberOfTrace
+                                        alpha_myinput_without_sample = cov_with_ref.alpha_
+                                        cov_with_ref = []
+                                        
+                                    model = GraphicalLassoCV(cv = 2, alphas=2, n_refinements=10, n_jobs = 1, max_iter = 100, tol = 1e-6, verbose = True)
+                                    cov = model.fit(np.array(self.myinput.pulse)[:,:self.nsample])
+                                    self.myinput.covariance = cov.covariance_ /self.data.numberOfTrace
+                                    alpha_myinput = cov.alpha_
+                                    
+                                   
+                            if self.path_data_ref:
+                                hdf =  h5py.File(os.path.join(path,filename),"w")
+                                self.ncm = self.myinput.covariance + self.myinput_without_sample.covariance
+                                self.ncm_inverse = inv_nla_jit(self.ncm)
+                                dataset = hdf.create_dataset("noise_convolution_matrix_inverse", data = self.ncm_inverse)
+                                dataset.attrs["CITATION"] = citation
+                                if self.data.timestamp:
+                                    dataset.attrs["REFEFERENCE_TIMESTAMP"] = self.data.timestamp[0]
+                                if self.data_without_sample.timestamp:
+                                    dataset.attrs["SAMPLE_TIMESTAMP"] = self.data_without_sample.timestamp[0]
+                                    
+                            else:
+                                hdf =  h5py.File(os.path.join(path,filename),"w")
+                                if self.myinput.covariance_inverse is None:
+                                    self.myinput.covariance_inverse = cov.precision_*self.data.numberOfTrace
+                                    cov = []
+                                dataset = hdf.create_dataset("covariance_inverse", data = self.myinput.covariance_inverse)
+                                dataset.attrs["CITATION"] = citation
+                                if self.data.timestamp:
+                                    dataset.attrs["TIMESTAMP"] = self.data.timestamp[0]
+                            hdf.close()
                     return 1
             else:
                 self.refreshAll3("Please enter initialization data first")
@@ -760,31 +847,10 @@ class Controler(ControlerBase):
     def error_message_output_filename(self):
         self.refreshAll3("Invalid output filename.")
 
-    def get_output_paths(self,outputdir):
-        """Check output names and path and stores them in temp file 4 if they are valid. """
-        try:
-            self.outputdir = str(outputdir)
-        except:
-            self.refreshAll3("Invalid output directory.")
-            return(0)
-       
-        output_paths = [self.outputdir]
-        if not os.path.isdir("temp"):
-            os.mkdir("temp")
-        f=open(os.path.join("temp",'temp_file_4.bin'),'wb')
-        pickle.dump(output_paths,f,pickle.HIGHEST_PROTOCOL)
-        f.close()
-        self.is_temp_file_4 = 1
-
 
     def ploting_text3(self,message):
         self.refreshAll3(message)
-        
-    def no_temp_file_1(self):
-        self.refreshAll3("Unable to execute without running step Initialization.")
-
-    def no_temp_file_4(self):
-        self.refreshAll3("Unable to execute without selecting path for output data first.")
+    
     
     def no_temp_file_5(self):
         self.refreshAll3("Unable to execute without optimization parameters")
