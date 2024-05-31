@@ -701,6 +701,21 @@ class Controler(ControlerBase):
                                 if self.data.timestamp:
                                     dataset.attrs["TIMESTAMP"] = self.data.timestamp[0]
                             hdf.close()
+                        if file == 6:
+                            title = "\n Frequency (Hz) \t Transfer function \t Amplitude \t Phase"
+                            
+                            
+                            transferFunction = TDS.torch_rfft(self.mydatacorrection.moyenne[:self.nsample])/TDS.torch_rfft(self.myinput_without_sample.moyenne)
+                            
+                            out = np.column_stack((np.fft.rfftfreq(self.nsample, self.dt),transferFunction, np.abs(tranferFunction), np.angle(tranferFunction)))
+                            
+                            if self.data.timestamp:
+                                custom+= str(self.data.timestamp[0])
+                            else:
+                                custom+= "unknown"
+                            np.savetxt(os.path.join(path,filename),out, header= citation+custom+title, delimiter = "\t")
+
+
 
                     else: #if no optimization
                         if file == 0:

@@ -1212,9 +1212,11 @@ class Optimization_choices(QGroupBox):
                 self.parent.parent.save_param.save_mean_batch(file)
             elif  self.parent.parent.ref_loaded:
                 self.parent.parent.save_param.save_mean_batch(file,ref)
+                self.parent.parent.save_param.save_tf_batch(file,ref)
                 
             self.parent.parent.save_param.save_std_time_batch(file)
             self.parent.parent.save_param.save_std_freq_batch(file)
+            
         
         # except Exception:
             # print(f"you should match references to number of sample files")
@@ -1426,6 +1428,33 @@ class Saving_parameters(QGroupBox):
         else:
             self.controler.refreshAll3("Please enter initialization data first")
     
+    def save_tf_batch(self,filename,ref=None):
+        global preview
+        if self.controler.initialised:
+            name = f"transferFunction_{path_(filename).stem}.txt"
+            # path = path_(filename).parent.joinpath(f"correct@tds_save_data")
+            path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            if not path_(path).is_dir():
+                path_(path).mkdir()
+            else:
+                pass
+            if name:
+                saved = self.controler.save_data(name, path, 6)
+                if saved:
+                    if not self.controler.optim_succeed:
+                        preview = 1
+                    self.controler.refreshAll3(" Saving tranfer function - Done")
+                else:
+                    print("Something went wrong")          
+            # print(path.joinpath(path_(filename).name))
+            subprocess.run(f"cp {filename} {path.joinpath(path_(filename).name)}", shell=True)
+            if ref != None:
+                subprocess.run(f"cp {ref} {path.joinpath(path_(ref).name)}", shell=True)
+                
+        else:
+            self.controler.refreshAll3("Please enter initialization data first")
+    
+    
     def save_std_time_batch(self,filename):
         global preview
         if self.controler.initialised:
@@ -1520,7 +1549,7 @@ class Saving_parameters(QGroupBox):
                 return(0)
         else:
             self.controler.refreshAll3("Please enter initialization data first")
-            
+
     def save_param(self):
         global preview
         if self.controler.optim_succeed:
