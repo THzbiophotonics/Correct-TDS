@@ -1216,7 +1216,9 @@ class Optimization_choices(QGroupBox):
                 
             self.parent.parent.save_param.save_std_time_batch(file)
             self.parent.parent.save_param.save_std_freq_batch(file)
-            
+            self.parent.parent.save_param.save_traces_batch(file)
+            self.parent.parent.save_param.save_cov_batch(file)
+            self.parent.parent.save_param.save_param_batch(file)
         
         # except Exception:
             # print(f"you should match references to number of sample files")
@@ -1522,6 +1524,143 @@ class Saving_parameters(QGroupBox):
                     print("Something went wrong")          
         else:
             self.controler.refreshAll3("Please enter initialization data first")
+            
+            
+    def save_param_batch(self,filename):
+        global preview
+        if self.controler.optim_succeed:
+            name = f"correction_params_{path_(filename).stem}.txt"
+            # # path = path_(filename).parent.joinpath(f"correct@tds_save_data")
+            # path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            
+#           if csts.modesuper:
+#               path_init = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+#               path = path_(filename).parent.joinpath(f"{path_(filename).stem}").joinpath(f"superresolution")
+#               if not path_(path_init).is_dir():
+#                   path_(path_init).mkdir()
+#                   path_(path).mkdir()
+            
+#            else:
+            path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            if not path_(path).is_dir():
+                path_(path).mkdir() 
+            
+            
+            # path_init = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            # if csts.modesuper:
+                # path = path_(filename).parent.joinpath(f"{path_(filename).stem}").joinpath(f"superresolution")
+            # else:
+                # path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            # if not path_(path_init).is_dir():
+                # path_(path_init).mkdir()
+                # path_(path).mkdir()
+            # elif path_(path_init).is_dir():
+                # if not path_(path).is_dir():
+                    # path_(path).mkdir() 
+            # else:
+                # pass
+            
+            if name:
+                saved = self.controler.save_data(name, path, 1)
+                if saved:
+                    if not self.controler.optim_succeed:
+                        preview = 1
+                    self.controler.refreshAll3(" Saving parameters - Done")
+                else:
+                    print("Something went wrong")          
+        else:
+            self.controler.refreshAll3("Please launch an optimization first")
+    
+    def save_traces_batch(self,filename):
+        global preview
+        if self.controler.initialised:
+            name = f"corrected_time_traces_{path_(filename).stem}.h5"
+            # path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            
+ #           if csts.modesuper:
+ #               path_init = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+ #               path = path_(filename).parent.joinpath(f"{path_(filename).stem}").joinpath(f"superresolution")
+ #               if not path_(path_init).is_dir():
+ #                   path_(path_init).mkdir()
+ #                   path_(path).mkdir()
+            
+ #           else:
+            path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            if not path_(path).is_dir():
+                path_(path).mkdir() 
+            
+            # path_init = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            # if csts.modesuper:
+                # path = path_(filename).parent.joinpath(f"{path_(filename).stem}").joinpath(f"superresolution")
+            # else:
+                # path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            # if not path_(path_init).is_dir():
+                # path_(path_init).mkdir()
+                # path_(path).mkdir()
+            # elif path_(path_init).is_dir():
+                # if not path_(path).is_dir():
+                    # path_(path).mkdir() 
+            # else:
+                # pass
+            
+            if name:
+                saved = self.controler.save_data(name, path, 2)
+                if saved:
+                    if not self.controler.optim_succeed:
+                        preview = 1
+                    self.controler.refreshAll3(" Saving each traces - Done")
+                else:
+                    print("Something went wrong")          
+        else:
+            self.controler.refreshAll3("Please enter initialization data first")
+    
+    def save_cov_batch(self,filename):
+        global preview
+        if self.controler.initialised:
+            name = f"noise_matrix_{path_(filename).stem}.h5"
+            # path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            
+#           if csts.modesuper:
+#               path_init = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+#               path = path_(filename).parent.joinpath(f"{path_(filename).stem}").joinpath(f"superresolution")
+#               if not path_(path_init).is_dir():
+#                   path_(path_init).mkdir()
+#                   path_(path).mkdir()
+            
+ #           else:
+            path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            if not path_(path).is_dir():
+                path_(path).mkdir() 
+            
+            # path_init = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            # if csts.modesuper:
+                # path = path_(filename).parent.joinpath(f"{path_(filename).stem}").joinpath(f"superresolution")
+            # else:
+                # path = path_(filename).parent.joinpath(f"{path_(filename).stem}")
+            # if not path_(path_init).is_dir():
+                # path_(path_init).mkdir()
+                # path_(path).mkdir()
+            # elif path_(path_init).is_dir():
+                # if not path_(path).is_dir():
+                    # path_(path).mkdir() 
+            # else:
+                # pass
+            
+            if name:
+                saved = self.controler.save_data(name, path, 5)
+                if saved:
+                    if not self.controler.optim_succeed:
+                        preview = 1
+                    self.controler.refreshAll3(" Saving matrix - Done")
+                else:
+                    print("Something went wrong")          
+        else:
+            self.controler.refreshAll3("Please enter initialization data first")
+            
+            
+            
+            
+            
     
     def save_mean(self):
         global preview
