@@ -1604,7 +1604,7 @@ class Saving_parameters(QGroupBox):
                 # pass
             
             if name:
-                saved = self.controler.save_data(name, path, 2)
+                saved = self.controler.save_data(name, path_(filename).parent, 2)   #Save H5 in the folder of the original (would be better to make the user choose the folder)
                 if saved:
                     if not self.controler.optim_succeed:
                         preview = 1
