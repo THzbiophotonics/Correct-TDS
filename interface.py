@@ -26,6 +26,7 @@ import seaborn as sns
 import time
 import fitf as TDS
 from fitc import Controler
+import param
 from scipy import signal
 from pathlib import Path as path_
 import constants as csts
@@ -86,7 +87,8 @@ class color:
 
 graph_option_2=None
 preview = 1
-apply_window = 0
+apply_window = param.apply_window
+
 
 
 class MyTableWidget(QWidget):
@@ -1903,11 +1905,11 @@ class Graphs_optimisation(QGroupBox):
         self.figure.clf()
         
         nsample = len(myinput.pulse[-1])
-        windows = np.ones(nsample)
+        window = np.ones(nsample)
         n_traces = len(myinput.pulse)
 
         if apply_window:
-            windows = signal.tukey(nsample, alpha = 0.05)  #don't forget to modify it in fitc and opt files if it's modify here 
+            window = param.window(nsample)
 
         if graph_option_2=='E_field [dB]':
             self.figure.clf()
@@ -1918,10 +1920,10 @@ class Graphs_optimisation(QGroupBox):
             color = 'tab:red'
             ax1.set_xlabel('Frequency [Hz]')
             ax1.set_ylabel('E_field [dB]',color=color)
-            ax1.plot(myglobalparameters.freq,20*np.log(abs(TDS.torch_rfft(myinput.moyenne*windows)))/np.log(10), 'b-', label='mean spectre (log)')
+            ax1.plot(myglobalparameters.freq,20*np.log(abs(TDS.torch_rfft(myinput.moyenne*window)))/np.log(10), 'b-', label='mean spectre (log)')
             if not preview:
-                ax1.plot(myglobalparameters.freq,20*np.log(abs(np.fft.rfft(myreferencedata.Pulseinit*windows)))/np.log(10), 'g-', label='reference spectre (log)')
-                ax1.plot(myglobalparameters.freq,20*np.log(abs(np.fft.rfft(mydatacorrection.moyenne*windows)))/np.log(10), 'r-', label='corrected mean spectre (log)')
+                ax1.plot(myglobalparameters.freq,20*np.log(abs(np.fft.rfft(myreferencedata.Pulseinit*window)))/np.log(10), 'g-', label='reference spectre (log)')
+                ax1.plot(myglobalparameters.freq,20*np.log(abs(np.fft.rfft(mydatacorrection.moyenne*window)))/np.log(10), 'r-', label='corrected mean spectre (log)')
 
             if apply_window == 0:
                 ax1.plot(myglobalparameters.freq,20*np.log(abs(myinput.freq_std/np.sqrt(n_traces)))/np.log(10), 'b--', label='Standard error (log)')
@@ -1945,10 +1947,10 @@ class Graphs_optimisation(QGroupBox):
             color = 'tab:red'
             ax1.set_xlabel('Time [s]')
             ax1.set_ylabel('Amplitude',color=color)
-            ax1.plot(myglobalparameters.t, myinput.moyenne*windows, 'b-', label='mean pulse')
+            ax1.plot(myglobalparameters.t, myinput.moyenne*window, 'b-', label='mean pulse')
             if not preview:
-                ax1.plot(myglobalparameters.t, myreferencedata.Pulseinit*windows, 'g-', label='reference pulse')
-                ax1.plot(myglobalparameters.t, mydatacorrection.moyenne*windows, 'r-', label='corrected mean pulse')
+                ax1.plot(myglobalparameters.t, myreferencedata.Pulseinit*window, 'g-', label='reference pulse')
+                ax1.plot(myglobalparameters.t, mydatacorrection.moyenne*window, 'r-', label='corrected mean pulse')
             ax1.legend()
             ax1.grid()
            
@@ -2013,9 +2015,9 @@ class Graphs_optimisation(QGroupBox):
             color = 'tab:red'
             ax1.set_xlabel('Time [s]')
             ax1.set_ylabel('Standard deviation Pulse (E_field)',color=color)
-            ax1.plot(myglobalparameters.t, myinput.time_std*windows, 'b-', label='mean pulse')
+            ax1.plot(myglobalparameters.t, myinput.time_std*window, 'b-', label='mean pulse')
             if not preview:
-                ax1.plot(myglobalparameters.t, mydatacorrection.time_std*windows, 'r-', label='corrected mean pulse')
+                ax1.plot(myglobalparameters.t, mydatacorrection.time_std*window, 'r-', label='corrected mean pulse')
             ax1.legend()
             ax1.grid()
             
@@ -2049,10 +2051,10 @@ class Graphs_optimisation(QGroupBox):
             color = 'tab:red'
             ax1.set_xlabel('Frequency [Hz]')
             ax1.set_ylabel('Phase (radians)',color=color)
-            ax1.plot(myglobalparameters.freq,np.unwrap(np.angle(np.fft.rfft(myinput.moyenne*windows))), 'b-', label='mean phase')
+            ax1.plot(myglobalparameters.freq,np.unwrap(np.angle(np.fft.rfft(myinput.moyenne*window))), 'b-', label='mean phase')
             if not preview:
-                ax1.plot(myglobalparameters.freq,np.unwrap(np.angle(np.fft.rfft(myreferencedata.Pulseinit*windows))), 'g-', label='reference phase')
-                ax1.plot(myglobalparameters.freq,np.unwrap(np.angle(np.fft.rfft(mydatacorrection.moyenne*windows))), 'r-', label='corrected mean phase')
+                ax1.plot(myglobalparameters.freq,np.unwrap(np.angle(np.fft.rfft(myreferencedata.Pulseinit*window))), 'g-', label='reference phase')
+                ax1.plot(myglobalparameters.freq,np.unwrap(np.angle(np.fft.rfft(mydatacorrection.moyenne*window))), 'r-', label='corrected mean phase')
             ax1.legend()
             ax1.grid()
         

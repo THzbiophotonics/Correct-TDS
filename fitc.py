@@ -11,6 +11,7 @@ import subprocess
 import numpy as np
 import h5py
 import fitf as TDS
+import param
 import warnings
 from scipy import signal
 from sklearn.covariance import GraphicalLassoCV, LedoitWolf, OAS
@@ -273,8 +274,8 @@ class Controler(ControlerBase):
         self.myinput.freq_std = np.std(TDS.torch_rfft(self.myinput.pulse, axis = 1), axis = 0)
         
         if apply_window == 1:  # it's not a linear operation in freq domain
-            windows = signal.tukey(self.nsamplenotreal, alpha = 0.05)
-            self.myinput.freq_std_with_window = np.std(TDS.torch_rfft(self.myinput.pulse*windows, axis = 1), axis = 0)
+            window = param.window(len(self.myinput.pulse[-1]))
+            self.myinput.freq_std_with_window = np.std(TDS.torch_rfft(self.myinput.pulse*window, axis = 1), axis = 0)
 
         if not os.path.isdir("temp"):
             os.mkdir("temp")
@@ -704,8 +705,10 @@ class Controler(ControlerBase):
                         if file == 6:
                             title = "\n Frequency (Hz) \t Amplitude \t Phase"
                             
-                            
-                            transferFunction = TDS.torch_rfft(self.mydatacorrection.moyenne[:self.nsample])/TDS.torch_rfft(self.myinput_without_sample.moyenne)
+                            if param.apply_window:
+                                transferFunction = TDS.torch_rfft(param.window(self.nsample)*self.mydatacorrection.moyenne[:self.nsample])/TDS.torch_rfft(param.window(self.nsample)*self.myinput_without_sample.moyenne)
+                            else:
+                                transferFunction = TDS.torch_rfft(self.mydatacorrection.moyenne[:self.nsample])/TDS.torch_rfft(self.myinput_without_sample.moyenne)
                             
                             out = np.column_stack((np.fft.rfftfreq(self.nsample, self.dt), np.abs(transferFunction), np.angle(transferFunction)))
                             

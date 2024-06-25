@@ -13,6 +13,7 @@ from pyswarm import pso   ## Library for optimization
 import numpy as np   ## Library to simplify the linear algebra calculations
 import scipy.optimize as optimize  ## Library for optimization
 import fitf as TDS
+import param
 from scipy import signal
 
 
@@ -252,7 +253,7 @@ nsamplenotreal=len(myglobalparameters.t)
 f.close()
 
 if apply_window == 1:
-    windows = signal.tukey(nsamplenotreal, alpha = 0.05)
+    windows = param.window(nsamplenotreal)
 
 
 out_dir="temp"
@@ -592,7 +593,8 @@ if fit_periodic_sampling:
         mymean = np.mean(datacorrection.pulse, axis = 0)   
     else:
         mymean = np.mean(data.pulse, axis = 0)
-
+    if param.apply_window_PS:
+        mymean *= param.window_PS(len(mymean))
     nu = periodic_sampling_freq_limit*1e12   # 1/s   Hz
     delta_nu = myglobalparameters.freq[-1]/(len(myglobalparameters.freq)-1) # Hz
     index_nu=int(nu/delta_nu)
