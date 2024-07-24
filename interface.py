@@ -1201,11 +1201,12 @@ class Optimization_choices(QGroupBox):
         if self.parent.parent.ref_loaded and len(csts.refs) != len(csts.files):
             raise ValueError
         i=0
+        ref = None
         for file in csts.files:
             print(file)
             if len(csts.refs) != 0:
-                for ref in csts.refs:
-                    self.begin_optimization(file,ref)
+                ref = csts.refs[i]
+                self.begin_optimization(file,ref)
             else:
                 self.begin_optimization(file)
             i+=1
