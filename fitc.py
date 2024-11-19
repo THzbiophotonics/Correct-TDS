@@ -12,8 +12,11 @@ import numpy as np
 import h5py
 import fitf as TDS
 import warnings
+import multiprocessing # For the break button
 from scipy import signal
 from sklearn.covariance import GraphicalLassoCV, LedoitWolf, OAS
+from pathlib import Path as path_
+
 
 
 import numba #pour inverser rapidement
@@ -39,7 +42,6 @@ except:
 # =============================================================================
 # classes we will use
 # =============================================================================
-
 
 class ControlerBase:
     def __init__(self):
@@ -81,7 +83,7 @@ class Controler(ControlerBase):
         self.nsample=None
         self.nsamplenotreal=None
         self.dt=None   ## Sampling rate
-        
+                
         self.myinput = TDS.datalist()
         self.mydatacorrection=TDS.datalist() 
         self.myinput_without_sample = TDS.datalist()
@@ -99,9 +101,9 @@ class Controler(ControlerBase):
         self.maxiter=1
 
         # Variables for existence of temp Files
-        self.is_temp_file_3 = 0 # temp file storing optimization results
-        self.is_temp_file_4 = 0
-        self.is_temp_file_5 = 0 # temp file storing algorithm choices
+        # self.is_temp_file_3 = 0 # temp file storing optimization results
+        # self.is_temp_file_4 = 0
+        # self.is_temp_file_5 = 0 # temp file storing algorithm choices
         
 
         # Variable to see if initialisation is done
@@ -139,6 +141,11 @@ class Controler(ControlerBase):
         self.trace_end = -1
         self.time_start = 0
         self.time_end = -1
+        
+        self.optim=TDS.Optimization()
+        
+        self.optimization_process=None
+        self.interface_process=None
         
 # =============================================================================
 # Initialisation tab
@@ -277,15 +284,18 @@ class Controler(ControlerBase):
 
         if not os.path.isdir("temp"):
             os.mkdir("temp")
-        f=open(os.path.join("temp",'temp_file_6.bin'),'wb')
-        pickle.dump(self.myinput,f,pickle.HIGHEST_PROTOCOL)
-        pickle.dump(self.myreferencedata,f,pickle.HIGHEST_PROTOCOL)
-        f.close()
+        # with open(os.path.join("temp",'temp_file_6.bin'),'wb') as f:
+        #     pickle.dump(self.myinput,f,pickle.HIGHEST_PROTOCOL)
+        #     pickle.dump(self.myreferencedata,f,pickle.HIGHEST_PROTOCOL)
         
-        f=open(os.path.join("temp",'temp_file_7.bin'),'wb')
-        pickle.dump(self.myglobalparameters,f,pickle.HIGHEST_PROTOCOL)
-        pickle.dump(apply_window,f,pickle.HIGHEST_PROTOCOL)
-        f.close()
+        with open(os.path.join("temp",'temp_file_7.bin'),'wb') as f:
+            pickle.dump(self.myglobalparameters,f,pickle.HIGHEST_PROTOCOL)
+            pickle.dump(apply_window,f,pickle.HIGHEST_PROTOCOL)
+        
+        self.optim.vars_temp_file_6_data=self.myinput
+        self.optim.vars_temp_file_6_ref=self.myreferencedata
+        self.optim.vars_temp_file_7_globalparameters=self.myglobalparameters
+        self.optim.vars_temp_file_7_apply_window=apply_window
         
         self.data.Pulseinit = [] #don't forget to empty it, important for memory
 
@@ -311,11 +321,11 @@ class Controler(ControlerBase):
                                self.Freqwindow,self.timeWindow, self.fit_delay, self.delaymax_guess, self.delay_limit,  self.mode, self.nsample,
                                self.fit_periodic_sampling, self.periodic_sampling_freq_limit, self.fit_leftover_noise, self.leftcoef_guess, self.leftcoef_limit]
     
-        if not os.path.isdir("temp"):
-            os.mkdir("temp")
-        f=open(os.path.join("temp",'temp_file_1_ini.bin'),'wb')
-        pickle.dump(mode_choicies_opt,f,pickle.HIGHEST_PROTOCOL)
-        f.close()
+        # if not os.path.isdir("temp"):
+        #     os.mkdir("temp")
+        # with open(os.path.join("temp",'temp_file_1_ini.bin'),'wb') as f:
+        #     pickle.dump(mode_choicies_opt,f,pickle.HIGHEST_PROTOCOL)
+        self.optim.vars_temp_file_1_ini=mode_choicies_opt
 
 
 
@@ -341,186 +351,234 @@ class Controler(ControlerBase):
         if not os.path.isdir("temp"):
             os.mkdir("temp")
 
-        f=open(os.path.join("temp",'temp_file_5.bin'),'wb')
-        pickle.dump(mode_choicies_opt,f,pickle.HIGHEST_PROTOCOL)
-        f.close()
-        self.is_temp_file_5 = 1
+        # with open(os.path.join("temp",'temp_file_5.bin'),'wb') as f:
+        #     pickle.dump(mode_choicies_opt,f,pickle.HIGHEST_PROTOCOL)
+        # self.is_temp_file_5 = 1
+        self.optim.vars_temp_file_5=mode_choicies_opt
 
         self.refreshAll3("")
         
         
     def begin_optimization(self,nb_proc):
         
-        #self.ncm = None
+        self.ncm = None
         
         """Run optimization and update layers"""
         output=""
         error=""
         returncode=0
-        if sys.platform=="win32" or sys.platform=="cygwin":
-            print("OS:Windows \n")
-            if not os.path.isdir("temp"):
-                os.mkdir("temp")
-            optimization_filename = os.path.join('temp',"opt.bat")
-            try:
-                with open(optimization_filename, 'w') as OPATH:
-                    OPATH.writelines(['call set Path=%Path%;C:\ProgramData\Anaconda3 \n',
-                   'call set Path=%Path%;C:\ProgramData\Anaconda3\condabin \n',
-                   'call set Path=%Path%;C:\ProgramData\Anaconda3\Scripts \n',
-                   #'call conda activate \n', 
-                   'call mpiexec -n {0} python opt.py'.format(nb_proc)])
-#                    OPATH.writelines([f'call mpiexec -n {nb_proc} opt.exe'])
-                subprocess.call(optimization_filename)
-                returncode = 0
-                error = ""
-                output = ""
-            except:
-                print("No parallelization! You don't have MPI installed or there's a problem with your MPI.")
-                with open(optimization_filename, 'w') as OPATH:
-                    OPATH.writelines([f'call opt.exe'])
-                subprocess.call(optimization_filename)
-                returncode = 0
-                error = ""
-                output = ""
-        elif sys.platform=="linux" or sys.platform=="darwin":
-            print("OS:Linux/MacOS \n")
-            optimization_filename = os.path.join('temp',"opt.sh")
-            try:
-                # Check if Open MPI is correctly installed
-                try:
-                    command = 'mpiexec --version'
-                    process=subprocess.Popen(command.split(),stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-                    output_mpi,error_mpi = process.communicate()
-                    returncode_mpi=process.returncode
-                except:
-                    returncode_mpi = 1
-                    error_mpi = "Command mpiexec not recognized."
+        self.optim.interrupt=False
+        self.optim.optimize(nb_proc)
+        
+        # #Creating an optimisation process
+        # self.optimization_process = multiprocessing.Process(target=self.optim.optimize, args=(nb_proc,),daemon=True)
+        # self.optimization_process.start()
+        
+        # #waiting for the end of the optimisation process
+        # self.optimization_process.join()
+        # print("Optimisation terminée.")
 
-                try:
-                    command = './py3-env/bin/python --version'
-                    process=subprocess.Popen(command.split(),stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-                    output_py3,error_py3 = process.communicate()
-                    returncode_py3=process.returncode
-                    python_path = "./py3-env/bin/python"
-                except:
-                    try:
-                        command = "python3 --version"
-                        process=subprocess.Popen(command.split(),stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-                        output_py3,error_py3 = process.communicate()
-                        returncode_py3=process.returncode
-                        python_path = "python3"
-                    except:
-                        returncode_py3 = 1
-                        error_py3 = "Command python3 not recognized."
+        
+#         if sys.platform=="win32" or sys.platform=="cygwin":
+#             print("OS:Windows \n")
+#             if not os.path.isdir("temp"):
+#                 os.mkdir("temp")
+#             optimization_filename = os.path.join('temp',"opt.bat")
+#             try:
+#                 with open(optimization_filename, 'w') as OPATH:
+#                     OPATH.writelines(['call set Path=%Path%;C:\ProgramData\Anaconda3 \n',
+#                     'call set Path=%Path%;C:\ProgramData\Anaconda3\condabin \n',
+#                     'call set Path=%Path%;C:\ProgramData\Anaconda3\Scripts \n',
+#                     #'call conda activate \n', 
+#                     f'call mpiexec -n {nb_proc} python opt.py'])
+# #                    OPATH.writelines([f'call mpiexec -n {nb_proc} opt.exe'])
+#                 subprocess.call(optimization_filename)
+#                 returncode = 0
+#                 error = ""
+#                 output = ""
+#             except:
+#                 print("No parallelization! You don't have MPI installed or there's a problem with your MPI.")
+#                 with open(optimization_filename, 'w') as OPATH:
+#                     OPATH.writelines([f'call opt.exe'])
+#                 subprocess.call(optimization_filename)
+#                 returncode = 0
+#                 error = ""
+#                 output = ""
+#         elif sys.platform=="linux" or sys.platform=="darwin":
+#             # print("OS:Linux/MacOS \n")
+#             optimization_filename = os.path.join('temp',"opt.sh")
+#             # print(optimization_filename)
+#             try:
+#                 # Check if Open MPI is correctly installed
+#                 try:
+#                     command = 'mpiexec --version'
+#                     process=subprocess.Popen(command.split(),stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+#                     output_mpi,error_mpi = process.communicate()
+#                     returncode_mpi=process.returncode
+#                 except:
+#                     returncode_mpi = 1
+#                     error_mpi = "Command mpiexec not recognized."
 
-                # Run optimization
-                if returncode_mpi==0:
-                    if returncode_py3==0:
-                        command = 'mpiexec -n {0} {1} opt.py'.format(nb_proc, python_path)
-                    else:
-                        print("Problem with python command : \n {} \n".format(error_py3))
-                        return(0)
-                else:
-                    print("No parallelization! You don't have MPI installed or there's a problem with your MPI: \n {}".format(error_mpi))
-                    if returncode_py3==0:
-                        command = '{0} opt.py'.format(python_path)
-                    else:
-                        print("Problem with python command : \n {} \n".format(error_py3))
-                        return(0)
+#                 try:
+#                     command = './correct-env/bin/python --version'
+#                     process=subprocess.Popen(command.split(),stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+#                     output_py3,error_py3 = process.communicate()
+#                     returncode_py3=process.returncode
+#                     # print(f"####\npython venv\n####")
+#                     python_path = "./correct-env/bin/python"
+#                 except:
+#                     try:
+#                         command = "python --version"
+#                         process=subprocess.Popen(command.split(),stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+#                         output_py3,error_py3 = process.communicate()
+#                         returncode_py3=process.returncode
+#                         python_path = "python"
+#                         # print(f" python version worked" if returncode_py3 == 0 else f"python version failed")
+#                     except:
+#                         returncode_py3 = 1
+#                         error_py3 = "Command python not recognized."
 
-                try:
-                    with open(optimization_filename, 'w') as OPATH:
-                        OPATH.writelines(command)
-                    returncode = subprocess.call('chmod +x ./{}'.format(optimization_filename),shell=True)
-                    if returncode == 0:
-                        returncode = subprocess.call('./{}'.format(optimization_filename),shell=True)
-                    if returncode == 1:
-                        command = ""
-                        with open("launch_opt.py", 'w') as OPATH:
-                            OPATH.writelines(command)
-                        try:
-                            import launch_opt
-                            try:
-                                f=open(os.path.join("temp",'temp_file_3.bin'),'rb')
-                                f.close()
-                                returncode=0
-                            except:
-                                print("Unknown problem.")
-                                sys.exit()
-                        except:
-                            print("Unknown problem.")
-                            sys.exit()
-                except:
-                    returncode = 1
-                    error = "Unknow problem."
-                    output = ""
-            except:
-                print("Unknown problem.")
-                sys.exit()
+#                 # Run optimization
+#                 if returncode_mpi==0:
+#                     if returncode_py3==0:
+#                         # fpath = os.getcwd()
+#                         # fpath = os.path.join(fpath,"opt.py")
+#                         # print(fpath)
+#                         # print(f"enter mpiexec command")
+#                         # command = f"#!/bin/sh\nmpiexec -n 1 {python_path} opt.py"
+#                         command = f"#!/bin/sh\npython opt.py"
+#                         # command = 'mpiexec -n 20 {1} opt.py'.format(python_path)
+#                         # print(command)
+#                     else:
+#                         print(f"Problem with python command : \n {error_py3} \n")
+#                         return(0)
+#                 else:
+#                     print(f"No parallelization! You don't have MPI installed or there's a problem with your MPI: \n {error_mpi}")
+#                     if returncode_py3==0:
+#                         command = f'#!/bin/sh\n{python_path} opt.py'
+#                     else:
+#                         print(f"Problem with python command : \n {error_py3} \n")
+#                         return(0)
 
-        else:
-            print("System not supported.")
-            return(0)
+#                 try:
+#                     with open(optimization_filename, 'w') as OPATH:
+#                         OPATH.writelines(command)
+#                     # print(f"permission ask")
+#                     returncode = subprocess.call(f'chmod +x ./{optimization_filename}',shell=True)
+#                     if returncode == 0:
+#                         # print(f"permission granted")
+#                         # print(os.getcwd())
+#                         # returncode = subprocess.call('./{}'.format(optimization_filename),shell=True)
+#                         optimization_filename = path_().cwd().joinpath("temp").joinpath("opt.sh")
+#                         # print(f"{optimization_filename}")
+#                         process = subprocess.run(f"{optimization_filename}",shell=True)
+#                         # print(process.returncode)
+#                         # print(returncode)
+#                     if returncode == 1:
+#                         command = ""
+#                         with open("launch_opt.py", 'w') as OPATH:
+#                             OPATH.writelines(command)
+#                             # print(f"created launch_opt.py")
+#                         try:
+#                             import launch_opt
+#                             try:
+#                                 f=open(os.path.join("temp",'temp_file_3.bin'),'rb')
+#                                 f.close()
+#                                 returncode=0
+#                             except:
+#                                 print("Unknown problem. cannot open temp file 3")
+#                                 sys.exit()
+#                         except:
+#                             print("Unknown problem. cannot import launch opt")
+#                             sys.exit()
+#                 except:
+#                     returncode = 1
+#                     error = "Unknow problem."
+#                     output = ""
+#             except:
+#                 print("Unknown problem.")
+#                 sys.exit()
 
-        if returncode==0:
-            f=open(os.path.join("temp",'temp_file_3.bin'),'rb')
-            self.is_temp_file_3 = 1
-            self.delay_correction = []
-            self.leftover_correction = []
-            self.periodic_correction = []
-            self.dilatation_correction = []
-            self.fopt = []
-            sum_fopt = 0
-            if self.fit_delay or self.fit_leftover_noise or self.fit_dilatation:
-                for i in range(self.data.numberOfTrace):
-                    var_inter=pickle.load(f)
-                    xopt=var_inter[0]
-                    fopt=var_inter[1]
-                    self.fopt.append(fopt)
-                    if self.fit_leftover_noise:
-                        self.leftover_correction.append(xopt[-2:])
+#         else:
+#             print("System not supported.")
+#             return(0)
+
+#         # We dont verify if returncode==0 anymore
+#         if returncode==0:
+#         with open(os.path.join("temp",'temp_file_3.bin'),'rb') as f:
+        
+        # Vérification de vars_temp_file_3
+        # var_inter = self.optim.vars_temp_file_3
+        # print(f"var_inter before looks like : {var_inter}")
+        # f=open(os.path.join("temp",'temp_file_3.bin'),'rb')
+        self.is_temp_file_3 = 1
+        self.delay_correction = []
+        self.leftover_correction = []
+        self.periodic_correction = []
+        self.dilatation_correction = []
+        self.fopt = []
+        sum_fopt = 0
+        if self.fit_delay or self.fit_leftover_noise or self.fit_dilatation:
+            for i in range(self.data.numberOfTrace): # we begin at 2 cause the first values don't work
+                var_inter=self.optim.vars_temp_file_3
+                temp_var_inter = var_inter[i]
+                print(f"temp_var_inter = {temp_var_inter}")
+                print(f"Iteration {i+1}")
+                # xopt=var_inter[0]
+                # fopt=var_inter[1]
+                xopt=temp_var_inter[0] # replace var_inter w temp_var_inter
+                fopt=temp_var_inter[1] # replace var_inter w temp_var_inter
+                self.fopt.append(fopt)
+                if self.fit_leftover_noise:
+                    self.leftover_correction.append(xopt[-2:])
+                if self.fit_delay:
+                    self.delay_correction.append(xopt[0])
+
+                if self.fit_dilatation:
                     if self.fit_delay:
-                        self.delay_correction.append(xopt[0])
-                    if self.fit_dilatation:
-                        if self.fit_delay:
-                            self.dilatation_correction.append(xopt[1:3])
-                        else:
-                            self.dilatation_correction.append(xopt[0:2])
-                            
-                sum_fopt = np.sum(self.fopt)
-            if self.fit_periodic_sampling:
-                var_inter=pickle.load(f)
-                xopt_ps=var_inter[0]
-                fopt_ps=var_inter[1]
-                self.periodic_correction.append(xopt_ps)
-            f.close()
+                        self.dilatation_correction.append(xopt[1:3])
+                    else:
+                        self.dilatation_correction.append(xopt[0:2])
+                        
+            sum_fopt = np.sum(self.fopt)
+        
+        if self.fit_periodic_sampling:
+            var_inter=self.optim.vars_temp_file_3
+            xopt_ps=var_inter[0]
+            fopt_ps=var_inter[1]
+            self.periodic_correction.append(xopt_ps)
             
-            f=open(os.path.join("temp",'temp_file_2.bin'),'rb')
-            self.mydatacorrection = pickle.load(f)
-            self.fopt_init = pickle.load(f)        #available only for delay,dilatation,amplitude correction
-            f.close()
-            
+        
+        # with open(os.path.join("temp",'temp_file_2.bin'),'rb') as f:
+        self.mydatacorrection = self.optim.vars_temp_file_2_datacorrection
+        self.fopt_init = self.optim.vars_temp_file_2_fopt       #available only for delay,dilatation,amplitude correction
+        
 
-            message = "Optimization terminated successfully\nCheck the output directory for the result\n\n"
+        message = "Optimization terminated successfully\nCheck the output directory for the result\n\n"
   
-            if self.fit_periodic_sampling:
-               message += 'For periodic sampling: \n The best error was:     {}'.format(fopt_ps) + '\nThe best parameters were:     {}\n'.format(xopt_ps) + "\n"
-            if self.fit_leftover_noise or self.fit_delay or self.fit_dilatation:
-                message+= "Sum of std Pulse E field (sqrt(sum(std^2))):\n   before correction \t{}\n".format(np.sqrt(sum(self.myinput.time_std**2)))
-                message+= "   after correction \t{}\n\n".format(np.sqrt(sum(self.mydatacorrection.time_std**2)))
-                
-                #message+= "Sum of errors :\n   before correction \t{}\n".format(sum_fopt)
-                #message+= " Sum of errors after correction \t{}\n\n".format(sum_fopt)
-
-            citation= "Please cite this paper in any communication about any use of Correct@TDS : \nComing soon..."
-            message += citation
+        if self.fit_periodic_sampling:
+        #     message += f'For periodic sampling: \n The best error was:     {fopt_ps}' + f'\nThe best parameters were:     {xopt_ps}\n' + "\n"
+        # if self.fit_leftover_noise or self.fit_delay or self.fit_dilatation:
+            message+= f"Sum of std Pulse E field (sqrt(sum(std^2))):\n   before correction \t{np.sqrt(sum(self.myinput.time_std**2))}\n"
+            message+= f"   after correction \t{np.sqrt(sum(self.mydatacorrection.time_std**2))}\n\n"
             
-            self.refreshAll3(message)
-        else:
-            self.refreshAll3("Output : \n {} \n".format(output))
-            print("System not supported. \n")
-            print('Output : \n {0} \n Error : \n {1} \n'.format(output, error))
-            return(0)
+            #message+= "Sum of errors :\n   before correction \t{}\n".format(sum_fopt)
+            #message+= " Sum of errors after correction \t{}\n\n".format(sum_fopt)
+
+        citation= "Please cite this paper in any communication about any use of Correct@TDS : \nComing soon..."
+        message += citation
+        
+        self.refreshAll3(message)
+        # else:
+        #     self.refreshAll3(f"Output : \n {output} \n")
+        #     print("System not supported. \n")
+        #     print(f'Output : \n {output} \n Error : \n {error} \n')
+        #     return(0)
+        
+    def stop_optimization(self):
+        self.optim.interrupt=True
+        # if self.optimization_process is not None:
+        #     self.optimization_process.join()
         
     def save_data(self, filename, path, file, cov_algo = 1):
       
@@ -533,7 +591,6 @@ class Controler(ControlerBase):
                             title = "\n timeaxis (ps) \t E-field"
                             out = np.column_stack((self.data.time, self.mydatacorrection.moyenne[:self.nsample]))
 
-                            
                             if self.data.timestamp:
                                 custom+= str(self.data.timestamp[0])
                             else:
@@ -835,3 +892,10 @@ class Controler(ControlerBase):
     
     def no_temp_file_5(self):
         self.refreshAll3("Unable to execute without optimization parameters")
+        
+        
+    def loading_text_break(self):
+        self.refreshAll3("\n Breaking... \n")
+
+
+
