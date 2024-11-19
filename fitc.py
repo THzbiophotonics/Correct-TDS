@@ -323,8 +323,8 @@ class Controler(ControlerBase):
     
         # if not os.path.isdir("temp"):
         #     os.mkdir("temp")
-        # with open(os.path.join("temp",'temp_file_1_ini.bin'),'wb') as f:
-        #     pickle.dump(mode_choicies_opt,f,pickle.HIGHEST_PROTOCOL)
+        with open(os.path.join("temp",'temp_file_1_ini.bin'),'wb') as f:
+            pickle.dump(mode_choicies_opt,f,pickle.HIGHEST_PROTOCOL)
         self.optim.vars_temp_file_1_ini=mode_choicies_opt
 
 
