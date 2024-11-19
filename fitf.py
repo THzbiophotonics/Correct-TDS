@@ -142,14 +142,14 @@ class myfitdata:
         
     def fit_input(self, myinputdata, x):
         global mode, myglobalparameters, fit_delay, fit_leftover_noise, fit_dilatation, dt
-        # with open(os.path.join("temp",'temp_file_1_ini.bin'),'rb') as f:
-        #     [path_data, path_data_ref, reference_number, fit_dilatation, dilatation_limit, dilatationmax_guess, 
-        #       freqWindow, timeWindow, fit_delay, delaymax_guess, delay_limit, mode, nsample,
-        #       fit_periodic_sampling, periodic_sampling_freq_limit, fit_leftover_noise, leftcoef_guess, leftcoef_limit]=pickle.load(f)
+        with open(os.path.join("temp",'temp_file_1_ini.bin'),'rb') as f:
+            [path_data, path_data_ref, reference_number, fit_dilatation, dilatation_limit, dilatationmax_guess, 
+              freqWindow, timeWindow, fit_delay, delaymax_guess, delay_limit, mode, nsample,
+              fit_periodic_sampling, periodic_sampling_freq_limit, fit_leftover_noise, leftcoef_guess, leftcoef_limit]=pickle.load(f)
             
-        # with open(os.path.join("temp",'temp_file_7.bin'),'rb') as f:
-        #     self.myglobalparameters = pickle.load(f)
-        self.myglobalparameters = self.vars_temp_file_7_globalparameters
+        with open(os.path.join("temp",'temp_file_7.bin'),'rb') as f:
+            self.myglobalparameters = pickle.load(f)
+        # self.myglobalparameters = self.vars_temp_file_7_globalparameters
         dt=self.myglobalparameters.t.item(2)-self.myglobalparameters.t.item(1)   ## Sample rate
 
 
