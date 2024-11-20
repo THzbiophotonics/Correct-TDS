@@ -143,6 +143,7 @@ class Controler(ControlerBase):
         self.time_end = -1
         
         self.optim=TDS.Optimization()
+        self.myfitdata = TDS.myfitdata
         
         self.optimization_process=None
         self.interface_process=None
@@ -282,20 +283,22 @@ class Controler(ControlerBase):
             windows = signal.tukey(self.nsamplenotreal, alpha = 0.05)
             self.myinput.freq_std_with_window = np.std(TDS.torch_rfft(self.myinput.pulse*windows, axis = 1), axis = 0)
 
-        if not os.path.isdir("temp"):
-            os.mkdir("temp")
+        # if not os.path.isdir("temp"):
+        #     os.mkdir("temp")
         # with open(os.path.join("temp",'temp_file_6.bin'),'wb') as f:
         #     pickle.dump(self.myinput,f,pickle.HIGHEST_PROTOCOL)
         #     pickle.dump(self.myreferencedata,f,pickle.HIGHEST_PROTOCOL)
         
-        with open(os.path.join("temp",'temp_file_7.bin'),'wb') as f:
-            pickle.dump(self.myglobalparameters,f,pickle.HIGHEST_PROTOCOL)
-            pickle.dump(apply_window,f,pickle.HIGHEST_PROTOCOL)
+        # with open(os.path.join("temp",'temp_file_7.bin'),'wb') as f:
+        #     pickle.dump(self.myglobalparameters,f,pickle.HIGHEST_PROTOCOL)
+        #     pickle.dump(apply_window,f,pickle.HIGHEST_PROTOCOL)
         
         self.optim.vars_temp_file_6_data=self.myinput
         self.optim.vars_temp_file_6_ref=self.myreferencedata
         self.optim.vars_temp_file_7_globalparameters=self.myglobalparameters
         self.optim.vars_temp_file_7_apply_window=apply_window
+        
+        self.myfitdata.myglobalparameters = self.myglobalparameters
         
         self.data.Pulseinit = [] #don't forget to empty it, important for memory
 
@@ -321,11 +324,13 @@ class Controler(ControlerBase):
                                self.Freqwindow,self.timeWindow, self.fit_delay, self.delaymax_guess, self.delay_limit,  self.mode, self.nsample,
                                self.fit_periodic_sampling, self.periodic_sampling_freq_limit, self.fit_leftover_noise, self.leftcoef_guess, self.leftcoef_limit]
     
-        # if not os.path.isdir("temp"):
-        #     os.mkdir("temp")
-        with open(os.path.join("temp",'temp_file_1_ini.bin'),'wb') as f:
-            pickle.dump(mode_choicies_opt,f,pickle.HIGHEST_PROTOCOL)
+        # # if not os.path.isdir("temp"):
+        # #     os.mkdir("temp")
+        # with open(os.path.join("temp",'temp_file_1_ini.bin'),'wb') as f:
+        #     pickle.dump(mode_choicies_opt,f,pickle.HIGHEST_PROTOCOL)
         self.optim.vars_temp_file_1_ini=mode_choicies_opt
+        self.myfitdata.vars_temp_file_1_ini=mode_choicies_opt
+
 
 
 
@@ -348,8 +353,8 @@ class Controler(ControlerBase):
         """Save algorithm choices in temp file 5"""
         self.algo=choix_algo
         mode_choicies_opt=[choix_algo,int(swarmsize),int(niter), int(niter_ps)]
-        if not os.path.isdir("temp"):
-            os.mkdir("temp")
+        # if not os.path.isdir("temp"):
+        #     os.mkdir("temp")
 
         # with open(os.path.join("temp",'temp_file_5.bin'),'wb') as f:
         #     pickle.dump(mode_choicies_opt,f,pickle.HIGHEST_PROTOCOL)

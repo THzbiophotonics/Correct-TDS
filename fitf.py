@@ -139,17 +139,24 @@ class myfitdata:
         self.myglobalparameters=None
         self.dt=None
         
+        self.vars_temp_file_1_ini = None
+        
         
     def fit_input(self, myinputdata, x):
-        global mode, myglobalparameters, fit_delay, fit_leftover_noise, fit_dilatation, dt
-        with open(os.path.join("temp",'temp_file_1_ini.bin'),'rb') as f:
-            [path_data, path_data_ref, reference_number, fit_dilatation, dilatation_limit, dilatationmax_guess, 
-              freqWindow, timeWindow, fit_delay, delaymax_guess, delay_limit, mode, nsample,
-              fit_periodic_sampling, periodic_sampling_freq_limit, fit_leftover_noise, leftcoef_guess, leftcoef_limit]=pickle.load(f)
+        # global mode, myglobalparameters, fit_delay, fit_leftover_noise, fit_dilatation, dt
+        # with open(os.path.join("temp",'temp_file_1_ini.bin'),'rb') as f:
+        #     [path_data, path_data_ref, reference_number, fit_dilatation, dilatation_limit, dilatationmax_guess, 
+        #       freqWindow, timeWindow, fit_delay, delaymax_guess, delay_limit, mode, nsample,
+        #       fit_periodic_sampling, periodic_sampling_freq_limit, fit_leftover_noise, leftcoef_guess, leftcoef_limit]=pickle.load(f)
             
-        with open(os.path.join("temp",'temp_file_7.bin'),'rb') as f:
-            self.myglobalparameters = pickle.load(f)
+        # with open(os.path.join("temp",'temp_file_7.bin'),'rb') as f:
+        #     self.myglobalparameters = pickle.load(f)
         # self.myglobalparameters = self.vars_temp_file_7_globalparameters
+        
+        fit_dilatation=self.vars_temp_file_1_ini[3]
+        fit_leftover_noise=self.vars_temp_file_1_ini[15]
+        fit_delay=self.vars_temp_file_1_ini[8]
+        
         dt=self.myglobalparameters.t.item(2)-self.myglobalparameters.t.item(1)   ## Sample rate
 
 
@@ -706,8 +713,6 @@ class Optimization():
                         # with open(os.path.join("temp",'temp_file_3.bin'),'wb') as f:
                         #     pickle.dump(result_optimization,f,pickle.HIGHEST_PROTOCOL)
                         result_optimization = [item.tolist() if isinstance(item, np.ndarray) else item for item in result_optimization]
-                        with open(os.path.join("temp",'temp_file_3.ascii'),'w') as f:
-                            json.dump(result_optimization,f)
                         result_optimization = [result_optimization]
                         self.vars_temp_file_3 = result_optimization
 
@@ -715,8 +720,6 @@ class Optimization():
                         # with open(os.path.join("temp",'temp_file_3.bin'),'ab') as f:
                         #     pickle.dump(result_optimization,f,pickle.HIGHEST_PROTOCOL)
                         result_optimization = [item.tolist() if isinstance(item, np.ndarray) else item for item in result_optimization]
-                        with open(os.path.join("temp",'temp_file_3.ascii'),'a') as f:
-                            json.dump(result_optimization,f)
                         self.vars_temp_file_3.append(result_optimization) # use .append instead of =
 
 
@@ -734,9 +737,9 @@ class Optimization():
                 if apply_window == 1:
                     datacorrection.freq_std_with_window = np.std(torch_rfft(datacorrection.pulse*windows, axis = 1),axis = 0)
                 #SAVE the result in binary for other modules
-                with open(os.path.join("temp",'temp_file_2.bin'),'wb') as f:
-                    pickle.dump(datacorrection,f,pickle.HIGHEST_PROTOCOL)
-                    pickle.dump(fopt_init,f,pickle.HIGHEST_PROTOCOL)
+                # with open(os.path.join("temp",'temp_file_2.bin'),'wb') as f:
+                #     pickle.dump(datacorrection,f,pickle.HIGHEST_PROTOCOL)
+                #     pickle.dump(fopt_init,f,pickle.HIGHEST_PROTOCOL)
                 self.vars_temp_file_2_datacorrection = datacorrection
                 self.vars_temp_file_2_fopt=fopt_init
                 
@@ -803,8 +806,6 @@ class Optimization():
                 #     pickle.dump(result_optimization,f,pickle.HIGHEST_PROTOCOL)
                 # self.vars_temp_file_3 = result_optimization
                 result_optimization = [item.tolist() if isinstance(item, np.ndarray) else item for item in result_optimization]
-                with open(os.path.join("temp",'temp_file_3.ascii'),'a') as f:
-                    json.dump(result_optimization,f)
                 self.vars_temp_file_3.append(result_optimization) # use .append instead of =
 
             else:
@@ -836,9 +837,9 @@ class Optimization():
             if apply_window == 1:
                 datacorrection.freq_std_with_window = np.std(torch_rfft(datacorrection.pulse*windows, axis = 1),axis = 0)
                         
-            with open(os.path.join("temp",'temp_file_2.bin'),'wb') as f:
-                pickle.dump(datacorrection,f,pickle.HIGHEST_PROTOCOL)
-                pickle.dump(fopt_init,f,pickle.HIGHEST_PROTOCOL)
+            # with open(os.path.join("temp",'temp_file_2.bin'),'wb') as f:
+            #     pickle.dump(datacorrection,f,pickle.HIGHEST_PROTOCOL)
+            #     pickle.dump(fopt_init,f,pickle.HIGHEST_PROTOCOL)
             self.vars_temp_file_2_datacorrection = datacorrection
             self.vars_temp_file_2_fopt=fopt_init
 
