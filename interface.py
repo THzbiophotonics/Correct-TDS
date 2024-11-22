@@ -2401,13 +2401,13 @@ class Graphs_optimisation(QGroupBox):
         # items = [str(file) for file in csts.files] # items doit etre au format str
         # self.plot_file.addItems(items)
         
-        # Ajout de l'heure actuelle pour connaitre le file plot
+        # Ajout de l heure actuelle pour connaitre le file plot
         current_time = datetime.now().strftime("%H:%M:%S")
         items = [f"{str(os.path.basename(file))} ; Added at {current_time}" for file in csts.files]
         self.plot_file.addItems(items)
         
-        # Sélectionner le dernier élément ajouté
-        last_index = self.plot_file.count() - 1  # Index du dernier élément
+        # Selectionner le dernier element ajoute
+        last_index = self.plot_file.count() - 1  # Index du dernier element
         self.plot_file.setCurrentIndex(last_index)
             
         
