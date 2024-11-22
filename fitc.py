@@ -17,8 +17,6 @@ from scipy import signal
 from sklearn.covariance import GraphicalLassoCV, LedoitWolf, OAS
 from pathlib import Path as path_
 
-
-
 import numba #pour inverser rapidement
 @numba.jit
 def inv_nla_jit(A):
@@ -366,6 +364,7 @@ class Controler(ControlerBase):
         
     def begin_optimization(self,nb_proc):
         
+        
         self.ncm = None
         
         """Run optimization and update layers"""
@@ -373,8 +372,9 @@ class Controler(ControlerBase):
         error=""
         returncode=0
         self.optim.interrupt=False
-        self.optim.optimize(nb_proc)
-        
+        self.optim.optimize(nb_proc)  
+   
+            
         # #Creating an optimisation process
         # self.optimization_process = multiprocessing.Process(target=self.optim.optimize, args=(nb_proc,),daemon=True)
         # self.optimization_process.start()
@@ -527,10 +527,6 @@ class Controler(ControlerBase):
             for i in range(self.data.numberOfTrace): # we begin at 2 cause the first values don't work
                 var_inter=self.optim.vars_temp_file_3
                 temp_var_inter = var_inter[i]
-                print(f"temp_var_inter = {temp_var_inter}")
-                print(f"Iteration {i+1}")
-                # xopt=var_inter[0]
-                # fopt=var_inter[1]
                 xopt=temp_var_inter[0] # replace var_inter w temp_var_inter
                 fopt=temp_var_inter[1] # replace var_inter w temp_var_inter
                 self.fopt.append(fopt)

@@ -29,6 +29,8 @@ from scipy import signal
 from pathlib import Path as path_
 import constants as csts
 import multiprocessing
+from datetime import datetime
+
 plt.rcParams.update({'font.size': 13})
 
 # ========================== progress bar stylesheet ========================= #
@@ -130,8 +132,6 @@ class MyTableWidget(QWidget):
         # Add tabs to widget
         self.layout.addWidget(self.tab)
         self.setLayout(self.layout)
-
-
 
 
 ###############################################################################
@@ -1151,6 +1151,8 @@ class Optimization_choices(QGroupBox):
         #TOVERIFY
         # self.begin_button.clicked.connect(self.begin_optimization)
         self.begin_button.clicked.connect(self.begin_optimizations)
+        
+        
         # self.begin_button.clicked.connect(self.controler.begin_optimization)
         self.begin_button.pressed.connect(self.pressed_loading)
         self.begin_button.setMaximumHeight(text_box_height)
@@ -1242,6 +1244,7 @@ class Optimization_choices(QGroupBox):
     def begin_optimizations(self):
         # try:
         # self.opt_progressbar.setMaximum(len(csts.files))
+        
         
         # COMMENT TO SUPP THE PROGRESS BAR
         
@@ -2395,9 +2398,20 @@ class Graphs_optimisation(QGroupBox):
 
     # =========================== add itesm to combobox ========================== #
     def add_items_to_combobox(self,items):
-        items = [str(file) for file in csts.files] # items doit etre au format str
+        # items = [str(file) for file in csts.files] # items doit etre au format str
+        # self.plot_file.addItems(items)
+        
+        # Ajout de l'heure actuelle pour connaitre le file plot
+        current_time = datetime.now().strftime("%H:%M:%S")
+        items = [f"{str(os.path.basename(file))} ; Added at {current_time}" for file in csts.files]
         self.plot_file.addItems(items)
-    
+        
+        # Sélectionner le dernier élément ajouté
+        last_index = self.plot_file.count() - 1  # Index du dernier élément
+        self.plot_file.setCurrentIndex(last_index)
+            
+        
+        
     # ========================= defing file choice signal ======================== #
     def refresh_plot(self):
         self.plot_batch()
