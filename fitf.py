@@ -478,7 +478,7 @@ class Optimization():
 
 
         if fit_periodic_sampling: #need an init point for optimization after correction
-            print("Periodic sampling optimization")
+            # print("Periodic sampling optimization")
 
             self.mymean = np.mean(data.pulse, axis = 0)
 
@@ -518,15 +518,15 @@ class Optimization():
 
 
         if fit_delay or fit_leftover_noise or fit_dilatation:
-            print("Delay and amplitude and dilatation error optimization")
+            # print("Delay and amplitude and dilatation error optimization")
             for trace in range(numberOfTrace) :
                 
                 # Checking if break button is pressed
                 if self.interrupt and self.optimization_process.is_alive():
                     self.optimization_process.terminate()
-                    print("Optimization process terminated")
+                    # print("Optimization process terminated")
             
-                print("Time trace "+str(trace))
+                # print("Time trace "+str(trace))
                 self.myinputdata=mydata(data.pulse[trace])    ## We create a variable containing the data related to the measured pulse
                 # data.pulse[trace] = [] # why there is this line of code ?
                 
@@ -550,35 +550,35 @@ class Optimization():
                 if trace == reference_number: # on part pas de 0.5 car il diverge vu que c'est la ref elle meme
                     ref_x0= [0.5 - 0.1**exposant_ref]*len(totVariablesName)
                     # on print pas c
-                    if fit_leftover_noise:  
-                        print('guess')
-                        print((np.array(ref_x0)*(self.maxval-self.minval)+self.minval)[:-1])
-                        print('x0')
-                        print(ref_x0[:-1])
-                    else:
-                        print('guess')
-                        print(np.array(ref_x0)*(self.maxval-self.minval)+self.minval)
-                        print('x0')
-                        print(ref_x0)
-                    print('errorguess')
+                    # if fit_leftover_noise:  
+                    #     print('guess')
+                    #     print((np.array(ref_x0)*(self.maxval-self.minval)+self.minval)[:-1])
+                    #     print('x0')
+                    #     print(ref_x0[:-1])
+                    # else:
+                    #     print('guess')
+                    #     print(np.array(ref_x0)*(self.maxval-self.minval)+self.minval)
+                    #     print('x0')
+                    #     print(ref_x0)
+                    # print('errorguess')
                     fopt_init.append(monerreur(ref_x0))
-                    print(fopt_init[-1])
+                    # print(fopt_init[-1])
                 else:
                     guess= x0*(self.maxval-self.minval)+self.minval
                     # on print seulemnt delay et a , pas c
-                    if fit_leftover_noise:
-                        print('guess')
-                        print(guess[:-1])
-                        print('x0')
-                        print(x0[:-1])
-                    else:
-                        print('guess')
-                        print(guess)
-                        print('x0')
-                        print(x0)
-                    print('errorguess')
+                    # if fit_leftover_noise:
+                    #     print('guess')
+                    #     print(guess[:-1])
+                    #     print('x0')
+                    #     print(x0[:-1])
+                    # else:
+                    #     print('guess')
+                    #     print(guess)
+                    #     print('x0')
+                    #     print(x0)
+                    # print('errorguess')
                     fopt_init.append(monerreur(x0))
-                    print(fopt_init[-1])
+                    # print(fopt_init[-1])
 
                 
                 
@@ -615,7 +615,7 @@ class Optimization():
                     start = time.process_time()
                     xopt,fopt=pso(monerreur,lb,up,swarmsize=swarmsize,minfunc=1e-18,minstep=1e-8,debug=1,phip=0.5,phig=0.5,maxiter=maxiter) ## 'monerreur' function that we want to minimize, 'lb' and 'up' bounds of the problem
                     elapsed_time = time.process_time()-start
-                    print("Time taken by the optimization:",elapsed_time)
+                    # print("Time taken by the optimization:",elapsed_time)
                     
                 if algo == 5:
                     start = time.process_time()
@@ -627,7 +627,7 @@ class Optimization():
                     elapsed_time = time.process_time()-start
                     xopt = res.x
                     fopt = res.fun
-                    print(res.message,"\nTime taken by the optimization:",elapsed_time)
+                    # print(res.message,"\nTime taken by the optimization:",elapsed_time)
                     
                 if algo == 6:
                     start = time.process_time()
@@ -639,7 +639,7 @@ class Optimization():
                     elapsed_time = time.process_time()-start
                     xopt = res.x
                     fopt = res.fun
-                    print(res.message,"\nTime taken by the optimization:",elapsed_time)
+                    # print(res.message,"\nTime taken by the optimization:",elapsed_time)
                     
                 if algo==7:
                     start = time.process_time()
@@ -648,7 +648,7 @@ class Optimization():
                     elapsed_time = time.process_time()-start
                     xopt = res.x
                     fopt = res.fun
-                    print(res.message,"\nTime taken by the optimization:",elapsed_time)
+                    # print(res.message,"\nTime taken by the optimization:",elapsed_time)
                 
                 
                 
@@ -691,11 +691,11 @@ class Optimization():
                 
                 if myrank == 0:
                     xopt = xopt*(self.maxval-self.minval)+self.minval  #denormalize
-                    print(f'The best error was: \t{fopt}')
-                    if(fit_leftover_noise):
-                        print(f'the best parameters were: \t{xopt[:-1]}\n')
-                    else:
-                        print(f'the best parameters were: \t{xopt}\n')
+                    # print(f'The best error was: \t{fopt}')
+                    # if(fit_leftover_noise):
+                    #     print(f'the best parameters were: \t{xopt[:-1]}\n')
+                    # else:
+                    #     print(f'the best parameters were: \t{xopt}\n')
                     # =========================================================================
                             
                     myfitteddata=myfitdata(self.myinputdata, xopt)
@@ -752,7 +752,7 @@ class Optimization():
 
 
         if fit_periodic_sampling:
-            print("Periodic sampling optimization")            
+            # print("Periodic sampling optimization")            
 
             if fit_delay or fit_leftover_noise or fit_dilatation:
                 self.mymean = np.mean(datacorrection.pulse, axis = 0)   
@@ -787,10 +787,10 @@ class Optimization():
 
                 return error
             
-            print('guess')
-            print(guess_ps)
-            print('x0')
-            print(x0_ps)
+            # print('guess')
+            # print(guess_ps)
+            # print('x0')
+            # print(x0_ps)
             res_ps = optimize.dual_annealing(error_periodic, x0 = x0_ps, maxiter = maxiter_ps, bounds=list(zip(lb_ps, ub_ps)))
             #res_ps = optimize.minimize(error_periodic,x0_ps, method='SLSQP',bounds=list(zip(lb_ps, ub_ps)), options={'maxiter':maxiter_ps})
             #res_ps = optimize.minimize(error_periodic,x0_ps,method='L-BFGS-B',bounds=list(zip(lb_ps, ub_ps)), options={'maxiter':1000})
@@ -819,17 +819,17 @@ class Optimization():
             if fit_delay or fit_leftover_noise or fit_dilatation:
                 for i in range(numberOfTrace):
                     # print("correction of trace {}".format(i))
-                    print(f"correction of trace {i}")
+                    # print(f"correction of trace {i}")
                     datacorrection.pulse[i]= datacorrection.pulse[i] - np.gradient(datacorrection.pulse[i], self.dt)*ct
             else:
                 for i in range(numberOfTrace):
-                    print(f"correction of trace {i}")
+                    # print(f"correction of trace {i}")
                     temp = data.pulse[i] - np.gradient(data.pulse[i], self.dt)*ct
                     datacorrection.add_trace(temp)
 
             
-            print(f'The best error was: \t{fopt_ps}')
-            print(f'the best parameters were: \t{xopt_ps}\n')
+            # print(f'The best error was: \t{fopt_ps}')
+            # print(f'the best parameters were: \t{xopt_ps}\n')
 
             datacorrection.moyenne = np.mean(datacorrection.pulse, axis = 0)
             datacorrection.time_std = np.std(datacorrection.pulse, axis = 0)
