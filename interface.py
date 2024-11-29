@@ -6,8 +6,10 @@
 #!/usr/bin/python
 # -*- coding: latin-1 -*-
 
-import os
-import sys
+import os, sys
+import fitf as TDS
+from fitc import Controler
+import constants as csts
 import subprocess
 import numpy as np
 from PyQt5.QtCore import *
@@ -20,14 +22,10 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 import sip
 import shutil
-import fitf as TDS
 import h5py
-import seaborn as sns
 import time
-from fitc import Controler
 from scipy import signal
 from pathlib import Path as path_
-import constants as csts
 import multiprocessing
 from datetime import datetime
 
@@ -1030,7 +1028,7 @@ class TextBoxWidget(QTextEdit):
         references = ['\u00b9 Time should be in ps.\nDatasets in the hdf5 must be named ["timeaxis", "0", "1", ..., "N-1"]\nExample: if we have 1000 time traces, N-1 = 999',
                       '\u00b2 Use to take into account the reference traces in the covariance computation \n(only if the initial data are measures with a sample)\ndon\'t forget to apply the same filters/correction to the reference before',
                       '\u00b3 Sharpness: 100 is almost a step function, 0.1 is really smooth. See graphs in optimization tab.',
-                      '\u2074 Plot the noise convolution matrix or the covariance matrix depending on the input \n The matrix must be saved for its computation (Ledoit-Wolf Shrinkage)'
+                      '\u2074 Plot the noise convolution matrix or the covariance matrix depending on the input \n The matrix must be saved for its computation (Graphical lasso)'
                       ]
         
         references_2=["\u2075 Error options:",
@@ -1293,7 +1291,7 @@ class Optimization_choices(QGroupBox):
             csts.ncm.append(self.controler.ncm) 
             csts.ncm_inverse.append(self.controler.ncm_inverse) 
             csts.reference_number.append(self.controler.reference_number) 
-            csts.mydatacorrection.append(self.controler.mydatacorrection) 
+            csts.mydatacorrection.append(self.controler.mydatacorrection)
             csts.delay_correction.append(self.controler.delay_correction) 
             csts.dilatation_correction.append(self.controler.dilatation_correction) 
             csts.leftover_correction.append(self.controler.leftover_correction) 
@@ -2379,7 +2377,7 @@ class Graphs_optimisation(QGroupBox):
         global graph_option_2
         graph_option_2='Noise matrices' # "noise matrix" replaced by "Noise matrices"
         # self.controler.ploting_text3('Ploting Covariance\n   Reminder - the matrix must be saved for its computation (Ledoit-Wolf shrinkage)')
-        self.parent.text_box.append(f'\nPlotting Covariance\n   Reminder - the matrix must be saved for its computation (Ledoit-Wolf shrinkage)')  
+        self.parent.text_box.append(f'\nPlotting Covariance\n   Reminder - the matrix must be saved for its computation (Graphical lasso)')  
         self.plot_batch()
     
     def Pulse_E_field_std_graph(self):

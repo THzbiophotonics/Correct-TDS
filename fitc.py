@@ -6,11 +6,11 @@
 # Standard Python modules
 # =============================================================================
 import os, sys
+import fitf as TDS
 import pickle
 import subprocess
 import numpy as np
 import h5py
-import fitf as TDS
 import warnings
 import multiprocessing # For the break button
 from scipy import signal
@@ -374,7 +374,7 @@ class Controler(ControlerBase):
         self.optim.interrupt=False
         self.optim.optimize(nb_proc)  
    
-            
+   
         # #Creating an optimisation process
         # self.optimization_process = multiprocessing.Process(target=self.optim.optimize, args=(nb_proc,),daemon=True)
         # self.optimization_process.start()
@@ -581,7 +581,7 @@ class Controler(ControlerBase):
         # if self.optimization_process is not None:
         #     self.optimization_process.join()
         
-    def save_data(self, filename, path, file, cov_algo = 1):
+    def save_data(self, filename, path, file, cov_algo = 3):
       
         citation= "Please cite this paper in any communication about any use of Correct@TDS : \n Coming soon..."
         custom = "\n Average over "+str(self.data.numberOfTrace)+" waveforms. Timestamp: "
@@ -707,13 +707,13 @@ class Controler(ControlerBase):
                                     
                                 elif cov_algo == 3:
                                     if self.path_data_ref:
-                                        model = GraphicalLassoCV(cv = 2, alphas=2, n_refinements=10, max_iter = 100, n_jobs=1, tol = 1e-6, verbose = True)
+                                        model = GraphicalLassoCV(cv = 3, alphas=2, n_refinements=10, max_iter = 100, mode = "cd", n_jobs=1, tol = 1e-4, verbose = True)
                                         cov_with_ref = model.fit([np.convolve(transfer_function, self.myinput_without_sample.pulse[i])[:self.nsample] for i in range(self.data.numberOfTrace) ])
                                         self.myinput_without_sample.covariance =  cov_with_ref.covariance_ /self.data.numberOfTrace
                                         alpha_myinput_without_sample = cov_with_ref.alpha_
                                         cov_with_ref = []
                                         
-                                    model = GraphicalLassoCV(cv = 2, alphas=2, n_refinements=10, max_iter = 100,n_jobs= 1, tol = 1e-6, verbose = True)
+                                    model = GraphicalLassoCV(cv = 3, alphas=2, n_refinements=10, max_iter = 100, mode = "cd", n_jobs=1, tol = 1e-4, verbose = True)
                                     cov = model.fit(np.array(self.mydatacorrection.pulse)[:,:self.nsample])
                                     self.mydatacorrection.covariance = cov.covariance_ /self.data.numberOfTrace
                                     alpha_mydatacorrection = cov.alpha_
@@ -828,13 +828,13 @@ class Controler(ControlerBase):
                                     
                                 elif cov_algo == 3:
                                     if self.path_data_ref:
-                                        model = GraphicalLassoCV(cv = 2, alphas=2, n_refinements=10, n_jobs = 1, max_iter = 100, tol = 1e-6, verbose = True)
+                                        model = GraphicalLassoCV(cv = 3, alphas=2, n_refinements=10, max_iter = 100, mode = "cd", n_jobs=1, tol = 1e-4, verbose = True)
                                         cov_with_ref = model.fit([np.convolve(transfer_function, self.myinput_without_sample.pulse[i])[:self.nsample] for i in range(self.data.numberOfTrace) ])
                                         self.myinput_without_sample.covariance =  cov_with_ref.covariance_ /self.data.numberOfTrace
                                         alpha_myinput_without_sample = cov_with_ref.alpha_
                                         cov_with_ref = []
                                         
-                                    model = GraphicalLassoCV(cv = 2, alphas=2, n_refinements=10, n_jobs = 1, max_iter = 100, tol = 1e-6, verbose = True)
+                                    model = GraphicalLassoCV(cv = 3, alphas=2, n_refinements=10, max_iter = 100, mode = "cd", n_jobs=1, tol = 1e-4, verbose = True)
                                     cov = model.fit(np.array(self.myinput.pulse)[:,:self.nsample])
                                     self.myinput.covariance = cov.covariance_ /self.data.numberOfTrace
                                     alpha_myinput = cov.alpha_

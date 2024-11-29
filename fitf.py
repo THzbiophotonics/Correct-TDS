@@ -8,7 +8,6 @@
 import numpy as np
 import h5py
 import warnings
-#import torch
 import os, time
 import pickle
 from pyswarm import pso   ## Library for optimization
