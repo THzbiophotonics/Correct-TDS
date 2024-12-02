@@ -1,0 +1,33 @@
+name: Publish Python package
+
+on:
+  push:
+    tags:
+      - 'v*'  # Déclenche le workflow à chaque fois qu'un tag est créé, par exemple v1.0.0
+
+jobs:
+  build:
+    runs-on: ubuntu-latest  # Utilise une machine virtuelle Ubuntu pour exécuter les étapes
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2  # Récupère le code du dépôt
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '>=3.9, <3.13'  # Indique la version de Python que tu souhaites utiliser
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install setuptools wheel twine  # Installe les outils nécessaires pour créer et publier le package
+
+    - name: Build the package
+      run: python setup.py sdist bdist_wheel  # Crée les distributions source et wheel du package
+
+    - name: Publish to PyPI
+      env:
+        TWINE_USERNAME: __token__  # Utilisation de __token__ pour l'authentification à PyPI
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}  # Utilise le token PyPI stocké dans les secrets GitHub
+      run: twine upload dist/*  # Publie les fichiers créés dans le dossier dist sur PyPI
