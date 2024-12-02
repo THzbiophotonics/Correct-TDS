@@ -6,7 +6,7 @@
 # Standard Python modules
 # =============================================================================
 import os, sys
-import fitf as TDS
+from Correct_TDS import fitf as TDS
 import pickle
 import subprocess
 import numpy as np

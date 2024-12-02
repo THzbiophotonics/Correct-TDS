@@ -1,4 +1,31 @@
-# Correct-TDS-in-development
+# Correct-TDS
+
+
+
+
+## With the pip install package :
+
+- Install pyOpt from https://github.com/madebr/pyOpt (optional)
+
+- Install anaconda (https://docs.anaconda.com/anaconda/install/index.html)
+
+- Create an environment
+
+- Open the environment terminal
+
+- To install the package, write in the command line :
+
+	```
+	pip install Correct-TDS
+	```
+- To run Correct@TDS, write in the command line :
+
+	```
+ 	Correct-TDS-interface
+	```
+- The gui can freeze while computing, it's normal, it's still in development
+
+## Manual instalation
 
 - Install anaconda (https://docs.anaconda.com/anaconda/install/index.html)
 
@@ -29,27 +56,6 @@
 	```
 - The gui can freeze while computing, it's normal, it's still in development
 
+## Usage
 
-## With the pip install package :
-
-- Install pyOpt from https://github.com/madebr/pyOpt (optional)
-
-- Install anaconda (https://docs.anaconda.com/anaconda/install/index.html)
-
-- Create an environment
-
-- Open the environment terminal
-
-- To install the package, write in the command line :
-
-	```
-	pip install Correct_TDS_Sami
-	```
-- To run Correct@TDS, write in the command line:
-
-	```
- 	python interface.py
-	```
-- Note : you need to set the correct path to open the interface
-
-- The gui can freeze while computing, it's normal, it's still in development
+A THz software that performs statistical analysis and error correction on .he files obtained with TeraHertz Time Domain Spectroscopy (THz-TDS).

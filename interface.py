@@ -7,9 +7,9 @@
 # -*- coding: latin-1 -*-
 
 import os, sys
-import fitf as TDS
-from fitc import Controler
-import constants as csts
+from Correct_TDS import fitf as TDS
+from Correct_TDS.fitc import Controler
+import Correct_TDS.constants as csts
 import subprocess
 import numpy as np
 from PyQt5.QtCore import *
@@ -534,12 +534,12 @@ class InitParamWidget(QWidget):
             self.dialog_match.ui.show_info_noref_messagebox()
     
     # def on_click_print(self):
-        # print(self.LFfilter_choice.currentIndex())
-        # print(self.HFfilter_choice.currentIndex())
-        # print(self.start_box.text())
-        # print(self.end_box.text())
-        # print(self.sharp_box.text())
-        # print(self.options_super.currentIndex())
+    #     print(self.LFfilter_choice.currentIndex())
+    #     print(self.HFfilter_choice.currentIndex())
+    #     print(self.start_box.text())
+    #     print(self.end_box.text())
+    #     print(self.sharp_box.text())
+    #     print(self.options_super.currentIndex())
         
 
     def on_click(self,data_,ref_):
