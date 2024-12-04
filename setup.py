@@ -8,6 +8,8 @@ setup(
     author='PERETTI Romain',
     author_email='"romain.peretti@univ-lille.fr',
     license='IEMN',
+    long_description=open('README.md').read(),
+    long_description_content_type='text/markdown',
     packages=find_packages(),
     python_requires='>=3.9, <3.13',
     install_requires=[
