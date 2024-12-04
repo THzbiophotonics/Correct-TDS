@@ -18,54 +18,27 @@
 	
   <li>Check the python version with the command line :</li>
 	
-	```
+
 	python --version
-	```
+
 
 It should be between 3.9 and 3.12.
 
   <li>To install the package, write in the command line :</li>
 
-	```
+
 	pip install Correct-TDS
-	```
+
 
   <li>To run Correct@TDS, write in the command line :</li>
 
-	```
+
  	Correct-TDS-interface
-	```
+
 The gui can freeze while computing, it's normal, it's still in development
 
 </ol>
 
-- Install pyOpt from https://github.com/madebr/pyOpt (optional)
-
-- Install anaconda (https://docs.anaconda.com/anaconda/install/index.html)
-
-- Create an environment with Anaconda
-
-- Open the environment terminal
-
-- Check the python version with the command line :
-
-	```
-	python --version
-	```
-
-  It should be between 3.9 and 3.12.
-
-- To install the package, write in the command line :
-
-	```
-	pip install Correct-TDS
-	```
-- To run Correct@TDS, write in the command line :
-
-	```
- 	Correct-TDS-interface
-	```
-- The gui can freeze while computing, it's normal, it's still in development
 
 ## Manual instalation
 
