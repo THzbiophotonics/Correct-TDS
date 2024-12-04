@@ -43,24 +43,25 @@ The gui can freeze while computing, it's normal, it's still in development
 ## Manual instalation
 
 <ol>
-	<li>Install anaconda (https://docs.anaconda.com/anaconda/install/index.html)</li>
-	<li>Install mpi4py with the command</li>
-		conda install -c conda-forge mpi4py
-	<li>Install pyswarm with the command</li>
-	```
-	pip install pyswarm
-	```
-	<li>Install numba with the command</li>
-	```
-	pip install numba
-	```
-	<li>Install pyOpt from https://github.com/madebr/pyOpt (optional)</li>
-	<li>To apply Tuckey window with alpha= 0.05, modify "apply_window = 0" to "apply_window = 1" in interface.py</li>
-	<li>To run Correct@TDS, write in the command line:</li>
-	```
-	python interface.py
-	```
-	The gui can freeze while computing, it's normal, it's still in development
+  <li>Install Anaconda: <a href="https://docs.anaconda.com/anaconda/install/index.html" target="_blank">https://docs.anaconda.com/anaconda/install/index.html</a></li>
+  
+  <li>Install mpi4py with the following command:</li>
+  <pre><code>pip install mpi4py</code></pre>
+  
+  <li>Install pyswarm with the following command:</li>
+  <pre><code>pip install pyswarm</code></pre>
+  
+  <li>Install numba with the following command:</li>
+  <pre><code>pip install numba</code></pre>
+  
+  <li>Install pyOpt from <a href="https://github.com/madebr/pyOpt" target="_blank">https://github.com/madebr/pyOpt</a> (optional)</li>
+  
+  <li>To apply the Tuckey window with alpha = 0.05, modify <code>apply_window = 0</code> to <code>apply_window = 1</code> in <code>interface.py</code></li>
+  
+  <li>To run Correct@TDS, use the following command:</li>
+  <pre><code>python interface.py</code></pre>
+  
+  <li>The GUI can freeze while computing. This is normal; the application is still in development.</li>
 </ol>
 
 - Install anaconda (https://docs.anaconda.com/anaconda/install/index.html)
