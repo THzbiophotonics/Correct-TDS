@@ -45,9 +45,7 @@ The gui can freeze while computing, it's normal, it's still in development
 <ol>
 	<li>Install anaconda (https://docs.anaconda.com/anaconda/install/index.html)</li>
 	<li>Install mpi4py with the command</li>
-	```
-	conda install -c conda-forge mpi4py
-	```
+		conda install -c conda-forge mpi4py
 	<li>Install pyswarm with the command</li>
 	```
 	pip install pyswarm
@@ -62,7 +60,7 @@ The gui can freeze while computing, it's normal, it's still in development
 	```
 	python interface.py
 	```
-	<li>The gui can freeze while computing, it's normal, it's still in development</li>
+	The gui can freeze while computing, it's normal, it's still in development
 </ol>
 
 - Install anaconda (https://docs.anaconda.com/anaconda/install/index.html)
