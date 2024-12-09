@@ -6,10 +6,8 @@
 # Standard Python modules
 # =============================================================================
 import os, sys
-try:
-    from Correct_TDS import fitf as TDS
-except ImportError:
-    import fitf as TDS
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import fitf as TDS
 import pickle
 import subprocess
 import numpy as np

@@ -7,14 +7,10 @@
 # -*- coding: latin-1 -*-
 
 import os, sys
-try :
-    from Correct_TDS import fitf as TDS
-    from Correct_TDS.fitc import Controler
-    import Correct_TDS.constants as csts
-except ImportError:
-    import fitf as TDS
-    from fitc import Controler
-    import constants as csts
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import fitf as TDS
+from fitc import Controler
+import constants as csts
 import subprocess
 import numpy as np
 from PyQt5.QtCore import *
