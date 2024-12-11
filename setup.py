@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='Correct_TDS',
-    version='0.1.19',    
+    version='0.1.20',    
     description='Correct TDS software for statistical gap analysis',
     url='https://github.com/THzbiophotonics/Correct-TDS-in-development/tree/master',
     author='PERETTI Romain',
