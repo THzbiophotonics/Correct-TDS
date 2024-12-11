@@ -6,8 +6,8 @@
 # Standard Python modules
 # =============================================================================
 import numpy as np
-from numpy.fft import rfft as torch_rfft
-from numpy.fft import irfft as torch_irfft
+from numpy.fft import rfft
+from numpy.fft import irfft
 import h5py
 import warnings
 import os, time
@@ -97,7 +97,7 @@ class getreferencetrace:
     def __init__(self, path, ref_number, trace_start, time_start):
         with h5py.File(path, "r") as f:
             self.Pulseinit = np.array(f[str(trace_start+ref_number)])
-            self.Spulseinit = torch_rfft(self.Pulseinit)  ## We compute the spectrum of the measured pulse
+            self.Spulseinit = rfft(self.Pulseinit)  ## We compute the spectrum of the measured pulse
             
     def transferfunction(self, myinputdata):
         return self.Spulseinit/myinputdata.Spulse
@@ -109,14 +109,14 @@ class getreferencetrace:
 class mydata:
       def __init__(self, pulse):
         self.pulse = pulse # pulse
-        self.Spulse = torch_rfft((pulse)) # spectral field
+        self.Spulse = rfft((pulse)) # spectral field
         
         
 class myfitdata: 
     def __init__(self, myinputdata, x):
         
         self.pulse = self.fit_input(myinputdata, x)
-        self.Spulse = (torch_rfft(self.pulse))
+        self.Spulse = (rfft(self.pulse))
         
         self.myreferencedata=None
         self.minval=None
@@ -163,7 +163,7 @@ class myfitdata:
         coef[1] = leftover_guess[1] #c
 
         Z = np.exp(j*self.myglobalparameters.w*delay_guess)
-        myinputdatacorrected_withdelay = torch_irfft(Z*myinputdata.Spulse, n = len(self.myglobalparameters.t))
+        myinputdatacorrected_withdelay = irfft(Z*myinputdata.Spulse, n = len(self.myglobalparameters.t))
 
         leftnoise = np.ones(len(self.myglobalparameters.t)) - coef[0]*np.ones(len(self.myglobalparameters.t))   #(1-a)    
         myinputdatacorrected = leftnoise*(myinputdatacorrected_withdelay  
@@ -296,7 +296,7 @@ class Optimization():
             coef[1] = leftover_guess[1] #c
 
             Z = np.exp(j*self.myglobalparameters.w*delay_guess)
-            myinputdatacorrected_withdelay = torch_irfft(Z*self.myinputdata.Spulse, n = len(self.myglobalparameters.t))
+            myinputdatacorrected_withdelay = irfft(Z*self.myinputdata.Spulse, n = len(self.myglobalparameters.t))
 
             leftnoise = np.ones(len(self.myglobalparameters.t)) - coef[0]*np.ones(len(self.myglobalparameters.t))   #(1-a)    
             myinputdatacorrected = leftnoise*(myinputdatacorrected_withdelay 
@@ -336,7 +336,7 @@ class Optimization():
         coef[1] = leftover_guess[1] #c
 
         Z = np.exp(j*self.myglobalparameters.w*delay_guess)
-        myinputdatacorrected_withdelay = torch_irfft(Z*self.myinputdata.Spulse, n = len(self.myglobalparameters.t))
+        myinputdatacorrected_withdelay = irfft(Z*self.myinputdata.Spulse, n = len(self.myglobalparameters.t))
 
         leftnoise = np.ones(len(self.myglobalparameters.t)) - coef[0]*np.ones(len(self.myglobalparameters.t))   #(1-a)    
         myinputdatacorrected = leftnoise*(myinputdatacorrected_withdelay  
@@ -365,8 +365,6 @@ class Optimization():
          freqWindow, timeWindow, fit_delay, delaymax_guess, delay_limit, mode, nsample,
          fit_periodic_sampling, periodic_sampling_freq_limit, fit_leftover_noise, leftcoef_guess, leftcoef_limit]=self.vars_temp_file_1_ini
 
-        # data = datalist()
-        
         data = self.vars_temp_file_6_data
         
         self.myreferencedata=self.vars_temp_file_6_ref
@@ -479,7 +477,7 @@ class Optimization():
                 ct = x[0]*np.cos(x[1]*self.myglobalparameters.t + x[2])    # s 
                 corrected = self.mymean - np.gradient(self.mymean, self.dt)*ct
                 
-                error = sum(abs((torch_rfft(corrected)[index_nu:])))
+                error = sum(abs((rfft(corrected)[index_nu:])))
                 
                 #error = 0 # Doesn't work , why?
                 #for i in range(index_nu,len(myglobalparameters.freq)):
@@ -711,9 +709,9 @@ class Optimization():
             if myrank == 0 and not fit_periodic_sampling:  
                 datacorrection.moyenne = np.mean(datacorrection.pulse, axis = 0)
                 datacorrection.time_std = np.std(datacorrection.pulse, axis = 0)
-                datacorrection.freq_std = np.std(torch_rfft(datacorrection.pulse, axis = 1),axis = 0)
+                datacorrection.freq_std = np.std(rfft(datacorrection.pulse, axis = 1),axis = 0)
                 if apply_window == 1:
-                    datacorrection.freq_std_with_window = np.std(torch_rfft(datacorrection.pulse*windows, axis = 1),axis = 0)
+                    datacorrection.freq_std_with_window = np.std(rfft(datacorrection.pulse*windows, axis = 1),axis = 0)
                 #SAVE the result in binary for other modules
                 # with open(os.path.join("temp",'temp_file_2.bin'),'wb') as f:
                 #     pickle.dump(datacorrection,f,pickle.HIGHEST_PROTOCOL)
@@ -756,7 +754,7 @@ class Optimization():
                 ct = x[0]*np.cos(x[1]*self.myglobalparameters.t + x[2])    # s 
                 corrected = self.mymean - np.gradient(self.mymean, self.dt)*ct
                 
-                error = sum(abs((torch_rfft(corrected)[index_nu:])))
+                error = sum(abs((rfft(corrected)[index_nu:])))
                 
                 #error = 0
                 # for i in range(index_nu,len(myglobalparameters.freq)):
@@ -810,9 +808,9 @@ class Optimization():
 
             datacorrection.moyenne = np.mean(datacorrection.pulse, axis = 0)
             datacorrection.time_std = np.std(datacorrection.pulse, axis = 0)
-            datacorrection.freq_std = np.std(torch_rfft(datacorrection.pulse, axis = 1),axis = 0) 
+            datacorrection.freq_std = np.std(rfft(datacorrection.pulse, axis = 1),axis = 0) 
             if apply_window == 1:
-                datacorrection.freq_std_with_window = np.std(torch_rfft(datacorrection.pulse*windows, axis = 1),axis = 0)
+                datacorrection.freq_std_with_window = np.std(rfft(datacorrection.pulse*windows, axis = 1),axis = 0)
                         
             # with open(os.path.join("temp",'temp_file_2.bin'),'wb') as f:
             #     pickle.dump(datacorrection,f,pickle.HIGHEST_PROTOCOL)

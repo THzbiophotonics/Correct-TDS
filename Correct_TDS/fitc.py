@@ -254,17 +254,17 @@ class Controler(ControlerBase):
 
                 if trace == 0: # on fait le padding une seule fois sur la ref
                     self.myreferencedata.Pulseinit=np.pad(self.myreferencedata.Pulseinit,(0,self.nsamplenotreal-self.nsample),'constant',constant_values=(0))
-                    self.myreferencedata.Spulseinit=(TDS.torch_rfft((self.myreferencedata.Pulseinit)))    # fft computed with GPU
+                    self.myreferencedata.Spulseinit=(TDS.rfft((self.myreferencedata.Pulseinit)))    # fft computed with GPU
             else:
                 self.mode = "basic"
                 
             # Filter data
             if trace == 0:
                 self.myreferencedata.Spulseinit = self.myreferencedata.Spulseinit*self.Freqwindow
-                self.myreferencedata.Pulseinit  = TDS.torch_irfft(self.myreferencedata.Spulseinit, n = self.nsamplenotreal)
+                self.myreferencedata.Pulseinit  = TDS.irfft(self.myreferencedata.Spulseinit, n = self.nsamplenotreal)
 
             myinputdata.Spulse         = myinputdata.Spulse        *self.Freqwindow
-            myinputdata.pulse          = TDS.torch_irfft(myinputdata.Spulse, n = self.nsamplenotreal)
+            myinputdata.pulse          = TDS.irfft(myinputdata.Spulse, n = self.nsamplenotreal)
                     
                 
 
@@ -278,11 +278,11 @@ class Controler(ControlerBase):
             
         self.myinput.moyenne = np.mean(self.myinput.pulse, axis= 0)  ### TDS.mean and TDS.std instead for big dataset
         self.myinput.time_std = np.std(self.myinput.pulse, axis = 0)
-        self.myinput.freq_std = np.std(TDS.torch_rfft(self.myinput.pulse, axis = 1), axis = 0)
+        self.myinput.freq_std = np.std(TDS.rfft(self.myinput.pulse, axis = 1), axis = 0)
         
         if apply_window == 1:  # it's not a linear operation in freq domain
             windows = signal.tukey(self.nsamplenotreal, alpha = 0.05)
-            self.myinput.freq_std_with_window = np.std(TDS.torch_rfft(self.myinput.pulse*windows, axis = 1), axis = 0)
+            self.myinput.freq_std_with_window = np.std(TDS.rfft(self.myinput.pulse*windows, axis = 1), axis = 0)
 
         self.optim.vars_temp_file_6_data=self.myinput
         self.optim.vars_temp_file_6_ref=self.myreferencedata
@@ -357,7 +357,6 @@ class Controler(ControlerBase):
         
     def begin_optimization(self,nb_proc):
         
-        
         self.ncm = None
         
         """Run optimization and update layers"""
@@ -365,7 +364,7 @@ class Controler(ControlerBase):
         error=""
         returncode=0
         self.optim.interrupt=False        
-        print("\n Start of optimization")
+        print("\n-Start of optimization") # add the file name
         self.optim.optimize(nb_proc)
         
         # # Creating an optimisation process
@@ -380,7 +379,7 @@ class Controler(ControlerBase):
         # self.optimization_process.start()
         # # waiting for the end of the optimisation process
         # self.optimization_process.join()
-        print("\n Optimization completed")
+        print("-Optimization completed")
         
 
         
@@ -666,7 +665,7 @@ class Controler(ControlerBase):
                             title = "\n Frequency (Hz) \t Std E-field"
                             if self.mode == "superresolution":
                                 if not self.mydatacorrection.freq_std_to_save:
-                                    self.mydatacorrection.freq_std_to_save = np.std(TDS.torch_rfft([self.mydatacorrection.pulse[i][:self.nsample] for i in range(self.data.numberOfTrace)], axis = 1),axis = 0)
+                                    self.mydatacorrection.freq_std_to_save = np.std(TDS.rfft([self.mydatacorrection.pulse[i][:self.nsample] for i in range(self.data.numberOfTrace)], axis = 1),axis = 0)
                                 out = np.column_stack((np.fft.rfftfreq(self.nsample, self.dt), self.mydatacorrection.freq_std_to_save))
                             else:
                                 out = np.column_stack((self.myglobalparameters.freq, self.mydatacorrection.freq_std))
@@ -681,7 +680,7 @@ class Controler(ControlerBase):
                         if file == 5:
                             if self.mydatacorrection.covariance is None:
                                 if self.path_data_ref:
-                                    transfer_function = TDS.torch_irfft(TDS.torch_rfft(self.mydatacorrection.moyenne[:self.nsample])/TDS.torch_rfft(self.myinput_without_sample.moyenne))
+                                    transfer_function = TDS.irfft(TDS.rfft(self.mydatacorrection.moyenne[:self.nsample])/TDS.rfft(self.myinput_without_sample.moyenne))
                             
                                 if cov_algo == 1:
                                     if self.path_data_ref:
@@ -706,6 +705,7 @@ class Controler(ControlerBase):
 
                                     
                                 elif cov_algo == 3:
+                                    print("\n Start of Graphical Lasso CV - The time printed in each refinement is the total time taken by the Graphical Lasso CV since the beginning.\n")
                                     if self.path_data_ref:
                                         model = GraphicalLassoCV(cv = 3, alphas=2, n_refinements=10, max_iter = 100, mode = "cd", n_jobs=1, tol = 1e-4, verbose = True)
                                         cov_with_ref = model.fit([np.convolve(transfer_function, self.myinput_without_sample.pulse[i])[:self.nsample] for i in range(self.data.numberOfTrace) ])
@@ -717,6 +717,7 @@ class Controler(ControlerBase):
                                     cov = model.fit(np.array(self.mydatacorrection.pulse)[:,:self.nsample])
                                     self.mydatacorrection.covariance = cov.covariance_ /self.data.numberOfTrace
                                     alpha_mydatacorrection = cov.alpha_
+                                    print("\n Graphical Lasso CV completed \n")
                                     
                                    
                             if self.path_data_ref:
@@ -792,7 +793,7 @@ class Controler(ControlerBase):
                                 custom+= "unknown"
                             if self.mode == "superresolution":
                                 if not self.myinput.freq_std_to_save:
-                                    self.myinput.freq_std_to_save = np.std(TDS.torch_rfft([self.myinput.pulse[i][:self.nsample] for i in range(self.data.numberOfTrace)], axis = 1),axis = 0)
+                                    self.myinput.freq_std_to_save = np.std(TDS.rfft([self.myinput.pulse[i][:self.nsample] for i in range(self.data.numberOfTrace)], axis = 1),axis = 0)
                                 out = np.column_stack((np.fft.rfftfreq(self.nsample, self.dt), self.myinput.freq_std_to_save))
                             else:
                                 out = np.column_stack((self.myglobalparameters.freq, self.myinput.freq_std))
@@ -802,7 +803,7 @@ class Controler(ControlerBase):
                         if file == 5:
                             if self.myinput.covariance is None:
                                 if self.path_data_ref:
-                                    transfer_function = TDS.torch_irfft(TDS.torch_rfft(self.myinput.moyenne[:self.nsample])/TDS.torch_rfft(self.myinput_without_sample.moyenne))
+                                    transfer_function = TDS.irfft(TDS.rfft(self.myinput.moyenne[:self.nsample])/TDS.rfft(self.myinput_without_sample.moyenne))
                             
                                 if cov_algo == 1:
                                     if self.path_data_ref:
@@ -827,6 +828,7 @@ class Controler(ControlerBase):
 
                                     
                                 elif cov_algo == 3:
+                                    print("\n Start of Graphical Lasso CV - The time printed in each refinement is the total time taken by the Graphical Lasso CV since the beginning.\n")
                                     if self.path_data_ref:
                                         model = GraphicalLassoCV(cv = 3, alphas=2, n_refinements=10, max_iter = 100, mode = "cd", n_jobs=1, tol = 1e-4, verbose = True)
                                         cov_with_ref = model.fit([np.convolve(transfer_function, self.myinput_without_sample.pulse[i])[:self.nsample] for i in range(self.data.numberOfTrace) ])
@@ -838,6 +840,7 @@ class Controler(ControlerBase):
                                     cov = model.fit(np.array(self.myinput.pulse)[:,:self.nsample])
                                     self.myinput.covariance = cov.covariance_ /self.data.numberOfTrace
                                     alpha_myinput = cov.alpha_
+                                    print("\n Graphical Lasso CV completed \n")
                                     
                                    
                             if self.path_data_ref:

@@ -543,13 +543,13 @@ class InitParamWidget(QWidget):
         else:
             self.dialog_match.ui.show_info_noref_messagebox()
     
-    def on_click_print(self):
-        print(self.LFfilter_choice.currentIndex())
-        print(self.HFfilter_choice.currentIndex())
-        print(self.start_box.text())
-        print(self.end_box.text())
-        print(self.sharp_box.text())
-        print(self.options_super.currentIndex())
+    # def on_click_print(self):
+    #     print(self.LFfilter_choice.currentIndex())
+    #     print(self.HFfilter_choice.currentIndex())
+    #     print(self.start_box.text())
+    #     print(self.end_box.text())
+    #     print(self.sharp_box.text())
+    #     print(self.options_super.currentIndex())
         
 
     def on_click(self,data_,ref_):
@@ -690,12 +690,12 @@ class InitParamWidget(QWidget):
         try:
             name = path_(fileNames[0]) #make sure files are loaded 
             self.path_data=path_(fileNames[0]).parent # a verifier 
-            file_name = os.path.basename(fileNames[0])
+            self.file_name = os.path.basename(fileNames[0])
             csts.init_directory = self.path_data # to make default directory
             # name=os.path.basename(fileName)
             if name:
                 # ======================== change: change butoon text ======================== #
-                self.button_ask_path_data.setText(f"loadded {file_name}") # replace "len(csts.files)" by "file_name"
+                self.button_ask_path_data.setText(f"loaded {self.file_name}") # replace "len(csts.files)" by "file_name"
                 # self.button_ask_path_data.setText(name)
                 self.controler.refreshAll3(f"loaded files:\n{[path_(csts.files[i]).name for i in range(len(csts.files))]}")
         # ---------------------------------------------------------------------------- #
@@ -705,6 +705,7 @@ class InitParamWidget(QWidget):
         except:
             self.button_ask_path_data.setText("No files were loaded")
             self.controler.error_message_path3()
+    
             
 
     def get_path_data_ref(self):
@@ -843,57 +844,52 @@ class Ui_Dialog(object):
 class Ui_Dialog_match(object):
     def setupUi(self, Dialog, controler):
         self.controler = controler
-        
-        
+
         self.lists_ordered = 0
         # ======================= keep the same for the moment ======================= #
         self.dialog = Dialog
-        self.dialog.resize(400, 126)
+        self.dialog.resize(400, 200)
         # ---------------------------------------------------------------------------- #
         self.dialog.setWindowTitle("match samples to references")
-        
+
         i = 0
         i2 = 0
-        
+
         self.label_files = QLabel(f"Files")
-        
+
         self.labels_files_text = [f"file {i}" for i in range(len(csts.files))]
-        self.labels_files = [QLabel(f"file {label}") for label in self.labels_files_text ]
+        self.labels_files = [QLabel(f"file {label}") for label in self.labels_files_text]
         # print(self.labels_files)
-        
-        
+
         self.comboboxes_files = [QComboBox() for i in range(len(csts.files))]
         for combobox in self.comboboxes_files:
             combobox.addItems([path_(csts.files[i]).name for i in range(len(csts.files))])
             combobox.setCurrentIndex(i)
-            i+=1
-        
+            i += 1
+
         # print(self.comboboxes_files)
-        
+
         self.label_refs = QLabel(f"Reference Files")
-        
+
         self.labels_refs_text = [f"ref {i}" for i in range(len(csts.files))]
-        self.labels_refs = [QLabel(f"file {label}") for label in self.labels_refs_text ]
-        
+        self.labels_refs = [QLabel(f"file {label}") for label in self.labels_refs_text]
+
         self.comboboxes_refs = [QComboBox() for i in range(len(csts.files))]
         for combobox in self.comboboxes_refs:
             combobox.addItems([path_(csts.refs[i]).name for i in range(len(csts.refs))])
             combobox.setCurrentIndex(i2)
-            i2+=1
-        
-        
+            i2 += 1
+
         self.button_match = QPushButton(f"Match")
         self.button_match.resize(100, 50)
         self.button_match.clicked.connect(self.action_match)
-        
-        
+
         if not csts.files:
             self.show_warning_messagebox()
-        
-        
+
         try:
             if csts.refs:
-                if self.comboboxes_refs[-1].currentText() == "" :
+                if self.comboboxes_refs[-1].currentText() == "":
                     self.show_critical_messagebox()
             else:
                 self.show_info_noref_messagebox()
@@ -902,42 +898,46 @@ class Ui_Dialog_match(object):
 
         self.button_match.setEnabled(False)
         self.verify_last_combo()
-        
+
         for combobox in self.comboboxes_refs:
             combobox.activated.connect(self.verify_last_combo)
-        
-        
-        self.vlayout = QVBoxLayout()
-        self.hlayout = QHBoxLayout()
-        self.hlayout_button  = QHBoxLayout()
-        
-        
+
+        # ===================== Create the scrolling area ===================== #
+        self.scroll_area = QScrollArea(self.dialog)
+        self.scroll_area.setWidgetResizable(True)
+
+        # Create a widget to contain the layouts inside the scroll area
+        self.scroll_widget = QWidget()
+        self.scroll_layout = QVBoxLayout(self.scroll_widget)
+
         for i in range(len(csts.files)):
             hlayout = QHBoxLayout()
             hlayout.addWidget(self.labels_files[i])
             hlayout.addWidget(self.comboboxes_files[i])
             hlayout.addWidget(self.labels_refs[i])
             hlayout.addWidget(self.comboboxes_refs[i])
-            self.vlayout.addLayout(hlayout)
-            
+            self.scroll_layout.addLayout(hlayout)  # Add layouts to scroll_layout
+
+        self.scroll_area.setWidget(self.scroll_widget)
+        # ===================================================================== #
+
         # print(self.vlayout)
-            
-            # self.vlayout_files.addWidget(self.labels_files[i])
-            # self.vlayout_files.addWidget(self.comboboxes_files[i])
-            # self.vlayout_files.addWidget(self.labels_refs[i])
-            # self.vlayout_files.addWidget(self.comboboxes_refs[i])
-        
+
+        # self.vlayout_files.addWidget(self.labels_files[i])
+        # self.vlayout_files.addWidget(self.comboboxes_files[i])
+        # self.vlayout_files.addWidget(self.labels_refs[i])
+        # self.vlayout_files.addWidget(self.comboboxes_refs[i])
+
         # for i in range(len(csts.files)):
-        
+
+        self.hlayout_button = QHBoxLayout()
         self.hlayout_button.addWidget(self.button_match)
-        
-        
-        
+
         self.general_layout = QVBoxLayout(self.dialog)
-        self.general_layout.addLayout(self.vlayout)
+        self.general_layout.addWidget(self.scroll_area)  # Add the scroll area to the general layout
         self.general_layout.addLayout(self.hlayout_button)
-        
-        
+
+        # Commented line retained
         self.general_layout.deleteLater()
 
     def action_match(self):
@@ -1157,7 +1157,7 @@ class Optimization_choices(QGroupBox):
         #TOCHANGE
         #TOVERIFY
         # self.begin_button.clicked.connect(self.begin_optimization)
-        self.begin_button.clicked.connect(self.begin_optimizations)
+        self.begin_button.clicked.connect(self.begin_batch_optimization)
         # self.begin_button.clicked.connect(self.controler.begin_optimization)
         self.begin_button.pressed.connect(self.pressed_loading)
         self.begin_button.setMaximumHeight(text_box_height)
@@ -1246,10 +1246,9 @@ class Optimization_choices(QGroupBox):
 # ======================= be careful with parent.parent ====================== #
 # ============================================================================ #
 
-    def begin_optimizations(self):
+    def begin_batch_optimization(self):
         # try:
         # self.opt_progressbar.setMaximum(len(csts.files))
-        
         
         # COMMENT TO SUPP THE PROGRESS BAR
         
@@ -1257,12 +1256,14 @@ class Optimization_choices(QGroupBox):
             raise ValueError
         i=0
         for file in csts.files:
-            print(file)
+            print(f"\n ============================= Optimisation of file {os.path.basename(file)} =============================")
             if len(csts.refs) != 0:
-                for ref in csts.refs:
-                    self.begin_optimization(file,ref)
+                ref=csts.refs[i]
+                print(f"\n With ref {os.path.basename(ref)} \n")
+                self.begin_optimization(file,ref)
             else:
                 self.begin_optimization(file)
+            
             i+=1
             self.controler.refreshAll3(f"\nfile {i}/{len(csts.files)} finished optimization")
             self.parent.parent.text_box.repaint()
@@ -2119,7 +2120,7 @@ class Graphs_optimisation(QGroupBox):
             color = 'tab:red'
             ax1.set_xlabel('Frequency [Hz]')
             ax1.set_ylabel('E_field [dB]',color=color)
-            ax1.plot(myglobalparameters.freq,20*np.log(abs(TDS.torch_rfft(myinput.moyenne*windows)))/np.log(10), 'b-', label='mean spectre (log)')
+            ax1.plot(myglobalparameters.freq,20*np.log(abs(TDS.rfft(myinput.moyenne*windows)))/np.log(10), 'b-', label='mean spectre (log)')
             if not preview:
                 ax1.plot(myglobalparameters.freq,20*np.log(abs(np.fft.rfft(myreferencedata.Pulseinit*windows)))/np.log(10), 'g-', label='reference spectre (log)')
                 ax1.plot(myglobalparameters.freq,20*np.log(abs(np.fft.rfft(mydatacorrection.moyenne*windows)))/np.log(10), 'r-', label='corrected mean spectre (log)')
