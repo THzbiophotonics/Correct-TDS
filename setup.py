@@ -2,14 +2,12 @@ from setuptools import setup, find_packages
 
 setup(
     name='Correct_TDS',
-    version='0.1.17',    
+    version='0.1.19',    
     description='Correct TDS software for statistical gap analysis',
     url='https://github.com/THzbiophotonics/Correct-TDS-in-development/tree/master',
     author='PERETTI Romain',
     author_email='"romain.peretti@univ-lille.fr',
     license='IEMN',
-    long_description=open('README.md').read(),
-    long_description_content_type='text/markdown',
     packages=find_packages(),
     python_requires='>=3.9, <3.13',
     install_requires=[
