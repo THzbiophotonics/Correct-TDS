@@ -270,6 +270,13 @@ class InitParamWidget(QWidget):
         # self.button.clicked.connect(self.on_click_print)
         self.button.setMaximumHeight(text_box_height)
         
+        # # We create a button to extract the information from the text boxes
+        # self.button = QPushButton('Submit / Preview')
+        # self.button.pressed.connect(self.pressed_loading)
+        # self.button.clicked.connect(self.on_click)
+        # self.button.setMaximumHeight(text_box_height)
+        
+        
         # Filter or not filter
         self.LFfilter_label = QLabel('Filter low frequencies?\t      ')
         self.LFfilter_choice = QComboBox()
@@ -536,13 +543,13 @@ class InitParamWidget(QWidget):
         else:
             self.dialog_match.ui.show_info_noref_messagebox()
     
-    # def on_click_print(self):
-    #     print(self.LFfilter_choice.currentIndex())
-    #     print(self.HFfilter_choice.currentIndex())
-    #     print(self.start_box.text())
-    #     print(self.end_box.text())
-    #     print(self.sharp_box.text())
-    #     print(self.options_super.currentIndex())
+    def on_click_print(self):
+        print(self.LFfilter_choice.currentIndex())
+        print(self.HFfilter_choice.currentIndex())
+        print(self.start_box.text())
+        print(self.end_box.text())
+        print(self.sharp_box.text())
+        print(self.options_super.currentIndex())
         
 
     def on_click(self,data_,ref_):
@@ -557,7 +564,6 @@ class InitParamWidget(QWidget):
             cutend   = float(self.end_box.text())
             cutsharp = float(self.sharp_box.text())
             modesuper = self.options_super.currentIndex()
-            # print(f" super = {modesuper}")
             
             trace_start = 0
             trace_end = -1
@@ -1152,8 +1158,6 @@ class Optimization_choices(QGroupBox):
         #TOVERIFY
         # self.begin_button.clicked.connect(self.begin_optimization)
         self.begin_button.clicked.connect(self.begin_optimizations)
-        
-        
         # self.begin_button.clicked.connect(self.controler.begin_optimization)
         self.begin_button.pressed.connect(self.pressed_loading)
         self.begin_button.setMaximumHeight(text_box_height)
@@ -1313,7 +1317,7 @@ class Optimization_choices(QGroupBox):
         # self.method = InitParamWidget(InitParamWidget.parent)
         # InitParamWidget.on_click(InitParamWidget.parent,csts.files[0])
         # InitParamWidget.on_click_param(self)
-        # TOVERIFY
+        # # TOVERIFY
         # self.parent.parent.on_click(csts.files[0])
         self.parent.parent.on_click(file,ref_file)
         self.parent.parent.on_click_param()
@@ -1330,8 +1334,13 @@ class Optimization_choices(QGroupBox):
                 nb_proc=1
             if self.controler.optim.vars_temp_file_5 != None:
                 self.controler.begin_optimization(nb_proc)
-                # background_opt = Thread(target=self.controler.begin_optimization(nb_proc), daemon = True )
-                # background_opt.start()
+                
+                # # Creating an optimisation process
+                # self.optimization_process = multiprocessing.Process(target=self.controler.begin_optimization, args=(nb_proc, ),daemon=True)
+                # self.optimization_process.start()
+                # # waiting for the end of the optimisation process
+                # self.optimization_process.join()
+                
                 graph_option_2='Pulse (E_field)'
             else:
                 self.controler.no_temp_file_5()

@@ -18,6 +18,7 @@ from scipy import signal
 from sklearn.covariance import GraphicalLassoCV, LedoitWolf, OAS
 from pathlib import Path as path_
 from threading import Thread
+import time
 
 import numba #pour inverser rapidement
 @numba.jit
@@ -283,16 +284,6 @@ class Controler(ControlerBase):
             windows = signal.tukey(self.nsamplenotreal, alpha = 0.05)
             self.myinput.freq_std_with_window = np.std(TDS.torch_rfft(self.myinput.pulse*windows, axis = 1), axis = 0)
 
-        # if not os.path.isdir("temp"):
-        #     os.mkdir("temp")
-        # with open(os.path.join("temp",'temp_file_6.bin'),'wb') as f:
-        #     pickle.dump(self.myinput,f,pickle.HIGHEST_PROTOCOL)
-        #     pickle.dump(self.myreferencedata,f,pickle.HIGHEST_PROTOCOL)
-        
-        # with open(os.path.join("temp",'temp_file_7.bin'),'wb') as f:
-        #     pickle.dump(self.myglobalparameters,f,pickle.HIGHEST_PROTOCOL)
-        #     pickle.dump(apply_window,f,pickle.HIGHEST_PROTOCOL)
-        
         self.optim.vars_temp_file_6_data=self.myinput
         self.optim.vars_temp_file_6_ref=self.myreferencedata
         self.optim.vars_temp_file_7_globalparameters=self.myglobalparameters
@@ -375,7 +366,7 @@ class Controler(ControlerBase):
         returncode=0
         self.optim.interrupt=False        
         print("\n Start of optimization")
-        self.optim.optimize(nb_proc)  
+        self.optim.optimize(nb_proc)
         
         # # Creating an optimisation process
         # print("\n Background opt begins")
@@ -385,12 +376,12 @@ class Controler(ControlerBase):
    
    
         # #Creating an optimisation process
-        # self.optimization_process = multiprocessing.Process(target=self.optim.optimize, args=(nb_proc,),daemon=True)
+        # self.optimization_process = multiprocessing.Process(target=self.optim.optimize, args=(nb_proc, ),daemon=True)
         # self.optimization_process.start()
-        
-        # #waiting for the end of the optimisation process
+        # # waiting for the end of the optimisation process
         # self.optimization_process.join()
-        # print("Optimisation terminée.")
+        print("\n Optimization completed")
+        
 
         
 #         if sys.platform=="win32" or sys.platform=="cygwin":

@@ -6,6 +6,8 @@
 # Standard Python modules
 # =============================================================================
 import numpy as np
+from numpy.fft import rfft as torch_rfft
+from numpy.fft import irfft as torch_irfft
 import h5py
 import warnings
 import os, time
@@ -29,32 +31,7 @@ try:
 except:
     print('mpi4py is required for parallelization')
     myrank=0
-    
-# =============================================================================
-# useful functions
-# =============================================================================
 
-def torch_rfft(signal, axis = -1):
-    #return torch.fft.rfft(torch.from_numpy(np.array(signal)), dim = axis).numpy()
-    return np.fft.rfft(np.array(signal), axis = axis)
-
-def torch_irfft(signal, axis = -1, n = None):
-    #return torch.fft.irfft(torch.from_numpy(np.array(signal)), dim = axis, n = n).numpy()
-    return np.fft.irfft(np.array(signal), axis = axis, n = n)
-
-def mean(array):
-    moyenne = np.zeros(len(array[-1]))
-    for i in array:
-        moyenne = moyenne+ i
-    moyenne = moyenne/len(array)
-    return moyenne
-
-def std(array,moyenne):
-    somme = np.zeros(len(array[-1]))
-    for i in array:
-        somme+= abs(i - moyenne)**2
-    ecart = np.sqrt((somme/len(array)))
-    return ecart
 
 # =============================================================================
 # classes we will use
@@ -91,11 +68,20 @@ class inputdatafromfile:
                 self.timestamp = [f[str(trace)].attrs["TIMESTAMP"] for trace in range(trace_start, trace_end+1) ]
             except:
                 pass
-            
+    
+    def mean(array):
+        moyenne = np.zeros(len(array[-1]))
+        for i in array:
+            moyenne = moyenne+ i
+        moyenne = moyenne/len(array)
+        return moyenne
+    
     def choose_ref_number(self):
         norm = []
         pseudo_norm = []
-        temp = mean(self.Pulseinit)
+        temp = inputdatafromfile.mean(self.Pulseinit)
+        
+        # I added the "mean" function to inputdatafromfile so now we use "inputdatafromfile.mean" instead of just "mean"
 
         for i in range(self.numberOfTrace):
             pseudo_norm.append(np.dot(self.Pulseinit[i], temp))
@@ -128,6 +114,7 @@ class mydata:
         
 class myfitdata: 
     def __init__(self, myinputdata, x):
+        
         self.pulse = self.fit_input(myinputdata, x)
         self.Spulse = (torch_rfft(self.pulse))
         
@@ -137,21 +124,15 @@ class myfitdata:
         self.myinputdata=None
         self.myglobalparameters=None
         self.dt=None
-        
         self.vars_temp_file_1_ini = None
         
         
-    def fit_input(self, myinputdata, x):
-        # global mode, myglobalparameters, fit_delay, fit_leftover_noise, fit_dilatation, dt
-        # with open(os.path.join("temp",'temp_file_1_ini.bin'),'rb') as f:
-        #     [path_data, path_data_ref, reference_number, fit_dilatation, dilatation_limit, dilatationmax_guess, 
-        #       freqWindow, timeWindow, fit_delay, delaymax_guess, delay_limit, mode, nsample,
-        #       fit_periodic_sampling, periodic_sampling_freq_limit, fit_leftover_noise, leftcoef_guess, leftcoef_limit]=pickle.load(f)
-            
-        # with open(os.path.join("temp",'temp_file_7.bin'),'rb') as f:
-        #     self.myglobalparameters = pickle.load(f)
-        # self.myglobalparameters = self.vars_temp_file_7_globalparameters
         
+        
+        
+    def fit_input(self, myinputdata, x):
+        
+
         fit_dilatation=self.vars_temp_file_1_ini[3]
         fit_leftover_noise=self.vars_temp_file_1_ini[15]
         fit_delay=self.vars_temp_file_1_ini[8]
@@ -283,7 +264,6 @@ class Optimization():
         
         
     def errorchoice(self):
-        # global mode, myglobalparameters, myinputdata, fit_delay, fit_leftover_noise, fit_dilatation, dt, nsample, maxval, minval
         nsample=self.vars_temp_file_1_ini[12]
         fit_dilatation=self.vars_temp_file_1_ini[3]
         fit_leftover_noise=self.vars_temp_file_1_ini[15]
@@ -329,7 +309,6 @@ class Optimization():
 
 
     def fit_input(self, myinputdata, x):
-        # global mode, myglobalparameters, fit_delay, fit_leftover_noise, fit_dilatation, dt
         
         fit_dilatation=self.vars_temp_file_1_ini[3]
         fit_leftover_noise=self.vars_temp_file_1_ini[15]
@@ -495,7 +474,6 @@ class Optimization():
             
             def error_periodic(x):
                 # x = A, v, phi
-                # global mymean
                 x = x*(maxval_ps-minval_ps)+minval_ps
                 
                 ct = x[0]*np.cos(x[1]*self.myglobalparameters.t + x[2])    # s 
@@ -696,7 +674,8 @@ class Optimization():
                     # else:
                     #     print(f'the best parameters were: \t{xopt}\n')
                     # =========================================================================
-                            
+                    
+                    
                     myfitteddata=myfitdata(self.myinputdata, xopt)
                     
                     datacorrection.add_trace(myfitteddata.pulse)
@@ -772,7 +751,6 @@ class Optimization():
             
             def error_periodic(x):
                 # x = A, v, phi
-                # global mymean
                 x = x*(maxval_ps-minval_ps)+minval_ps
                 
                 ct = x[0]*np.cos(x[1]*self.myglobalparameters.t + x[2])    # s 
